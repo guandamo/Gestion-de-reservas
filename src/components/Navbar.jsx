@@ -1,6 +1,14 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Navbar() {
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        // TODO: cuando tengas auth real (JWT), acá también limpiás el token guardado
+        navigate('/login');
+    };
+
     return (
         <header className="bg-verde-principal text-blanco px-6 py-3 flex items-center justify-between shadow-md">
             {/* Sección Izquierda: Logo y Título */}
@@ -20,6 +28,13 @@ export default function Navbar() {
                     AD
                 </div>
                 <span className="text-sm font-medium hidden sm:inline">Administrador</span>
+
+                <button
+                    onClick={handleLogout}
+                    className="text-xs bg-red-500/20 text-red-300 hover:bg-red-500/30 px-3 py-1.5 rounded-lg border border-red-500/30 transition font-medium"
+                >
+                    Cerrar Sesión
+                </button>
             </div>
         </header>
     );

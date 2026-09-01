@@ -1,22 +1,36 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
 import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminLayout from './layouts/AdminLayout';
 import UserDashboard from './pages/UserDashboard';
 
+import Calendario from './components/Calendario';
+import Reportes from './pages/Reportes';
+import CanchasYPrecios from './pages/CanchasYPrecios';
+import Usuarios from './pages/Usuarios';
+
 export default function App() {
-  // Estado para simular qué pantalla se muestra: 'login', 'admin' o 'user'
-  const [vistaActual, setVistaActual] = useState('login');
+    return (
+        <BrowserRouter>
+            <Routes>
+                {/* Login */}
+                <Route path="/login" element={<Login />} />
 
-  // 1. Si la vista es Admin
-  if (vistaActual === 'admin') {
-    return <AdminDashboard onLogout={() => setVistaActual('login')} />;
-  }
+                {/* Panel Admin: AdminLayout es el "padre" de todas estas rutas */}
+                <Route path="/admin" element={<AdminLayout />}>
+                    <Route index element={<Calendario />} />
+                    <Route path="reportes" element={<Reportes />} />
+                    <Route path="canchas" element={<CanchasYPrecios />} />
+                    <Route path="usuarios" element={<Usuarios />} />
+                </Route>
 
-  // 2. Si la vista es Cliente (Usuario)
-  if (vistaActual === 'user') {
-    return <UserDashboard onLogout={() => setVistaActual('login')} />;
-  }
+                {/* Panel Usuario */}
+                <Route path="/user" element={<UserDashboard />} />
 
-  // 3. Por defecto (Login)
-  return <Login onLogin={(rol) => setVistaActual(rol)} />;
+                {/* Cualquier ruta desconocida -> login */}
+                <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+        </BrowserRouter>
+    );
 }
