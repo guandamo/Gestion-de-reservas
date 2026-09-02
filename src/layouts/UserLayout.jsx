@@ -1,25 +1,54 @@
-import React from 'react';
+import React, { useState } from 'react';
+import Navbar from '../components/Navbar';
+import Calendario from '../components/Calendario';
+import MisReservas from '../components/MisReservas';
 
-export default function UserLayout({ children }) {
+export default function UserDashboard({ onLogout }) {
+
+    const [vistaActiva, setVistaActiva] = useState('calendario');
+
     return (
-        <div className="min-h-screen bg-gris-fondo text-blanco flex flex-col">
-            {/* Header simplificado para clientes */}
-            <header className="bg-verde-principal text-blanco px-6 py-3 flex items-center justify-between shadow-md">
-                <div className="flex items-center gap-3">
-                    <div className="bg-blanco/20 p-2 rounded-full flex items-center justify-center">
-                        ⚽
-                    </div>
-                    <h1 className="text-xl font-bold tracking-wide">Reserva de Canchas</h1>
-                    <span className="bg-black/30 text-xs px-2.5 py-1 rounded-full text-verde-claro font-medium border border-verde-claro/20">
-                        Cliente
-                    </span>
-                </div>
-            </header>
+        <div className="min-h-screen bg-gray-900 flex flex-col">
+            <Navbar role="user" onLogout={onLogout} />
+            <div className="flex flex-1">
+                <aside className="w-64 bg-gray-100 p-4 border-r border-gray-300">
+                    <h2 className="text-gray-500 text-xs font-bold mb-4 tracking-wider">MENÚ</h2>
 
-            {/* Área de contenido del usuario */}
-            <main className="flex-1 p-6 max-w-6xl mx-auto w-full">
-                {children}
-            </main>
+                    <nav className="flex flex-col gap-2">
+
+                        {/* BOTÓN 1: CALENDARIO */}
+                        <button
+                            onClick={() => setVistaActiva('calendario')}
+                            className={`text-left px-4 py-3 rounded-lg font-medium transition-colors ${vistaActiva === 'calendario'
+                                ? 'bg-green-100 text-green-800'
+                                : 'text-gray-700 hover:bg-gray-200'
+                                }`}
+                        >
+                            📅 Calendario
+                        </button>
+
+                        {/* BOTÓN 2: MIS RESERVAS */}
+                        <button
+                            onClick={() => setVistaActiva('reservas')}
+                            className={`text-left px-4 py-3 rounded-lg font-medium transition-colors ${vistaActiva === 'reservas'
+                                ? 'bg-green-100 text-green-800'
+                                : 'text-gray-700 hover:bg-gray-200'
+                                }`}
+                        >
+                            🕒 Mis reservas
+                        </button>
+                    </nav>
+                </aside>
+
+                <main className="flex-1 bg-[#1a1a1a]">
+                    {vistaActiva === 'calendario' ? (
+                        <Calendario />
+                    ) : (
+                        <MisReservas />
+                    )}
+
+                </main>
+            </div>
         </div>
     );
 }
