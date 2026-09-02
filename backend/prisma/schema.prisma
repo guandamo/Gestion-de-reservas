@@ -11,3 +11,109 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model TipoCancha {
+  id          Int    @id @default(autoincrement())
+  descripcion String @unique
+
+  canchas Cancha[]
+}
+
+model Cancha {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  activa      Boolean  @default(true)
+  horaInicio  DateTime @db.Time
+  horaFin     DateTime @db.Time
+  precioTurno Decimal  @db.Decimal(10, 2)
+
+  idTipoCancha Int
+  tipoCancha   TipoCancha @relation(fields: [idTipoCancha], references: [id])
+
+  turnos Turno[]
+}
+
+model Turno {
+  id         Int         @id @default(autoincrement())
+  fecha      DateTime    @db.Date
+  horaInicio DateTime    @db.Time
+  precio     Decimal     @db.Decimal(10, 2)
+  estado     EstadoTurno @default(DISPONIBLE)
+
+  idCancha Int
+  cancha   Cancha @relation(fields: [idCancha], references: [id])
+
+  reservas Reserva[]
+
+  @@unique([idCancha, fecha, horaInicio])
+}
+
+enum EstadoTurno {
+  DISPONIBLE
+  RESERVADO
+}
+
+model Reserva {
+  id          Int           @id @default(autoincrement())
+  fechaAlta   DateTime      @default(now())
+  estado      EstadoReserva @default(PENDIENTE)
+  cancelledAt DateTime?
+
+  idUsuario Int
+  idTurno   Int
+
+  usuario Usuario @relation(fields: [idUsuario], references: [id])
+  turno   Turno   @relation(fields: [idTurno], references: [id])
+
+  pago Pago?
+}
+
+enum EstadoReserva {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+}
+
+model Pago {
+  id        Int        @id @default(autoincrement())
+  monto     Decimal    @db.Decimal(10, 2)
+  fechaPago DateTime?
+  estado    EstadoPago @default(PENDIENTE)
+  metodo    MetodoPago
+
+  idReserva Int     @unique
+  reserva   Reserva @relation(fields: [idReserva], references: [id])
+
+  idMercadoPago String? @unique
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  MERCADOPAGO
+}
+
+model Usuario {
+  id           Int        @id @default(autoincrement())
+  nombre       String
+  apellido     String
+  email        String     @unique
+  contrasena   String
+  telefono     String     @unique
+  rol          RolUsuario @default(USUARIO)
+  created_at   DateTime   @default(now())
+  modified_at  DateTime   @updatedAt
+  ultimoCambio String?
+  activo       Boolean    @default(true)
+
+  reservas Reserva[]
+}
+
+enum RolUsuario {
+  USUARIO
+  ADMIN
+}
