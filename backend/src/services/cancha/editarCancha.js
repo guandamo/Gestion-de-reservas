@@ -1,4 +1,4 @@
-import { prisma } from "../config/prisma.js";
+import { prisma } from "../../config/prisma.js";
 import { generarTurnosParaCancha } from "./generadorTurnos.js";
 
 export async function editarCancha(idCancha, {

@@ -1,4 +1,4 @@
-import { prisma } from "../config/prisma.js";  //trae la conexión a PostgreSQL
+import { prisma } from "../../config/prisma.js";  //trae la conexión a PostgreSQL
 
 const DIAS_A_GENERAR = 30;
 
