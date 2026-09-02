@@ -15,21 +15,52 @@ export async function generarTurnos() {   //busca las canchas que estan activas
   }
       
   export async function generarTurnosParaCancha(cancha) {
+
+    const turnosReservados = await prisma.turno.findMany({ //busco los turnos reservados de la caancha si los hay
+      where: { 
+        idCancha: cancha.id,
+        estado: "RESERVADO",
+        fecha: {gte: obtenerFecha(0),},
+    },
+    });
+
+
     const horaInicial = cancha.horaInicio.getUTCHours();   
     const horaFinal = cancha.horaFin.getUTCHours();
     const minutos = cancha.horaInicio.getUTCMinutes();
     const turnos = [];
+    
     for (let dia = 0; dia < DIAS_A_GENERAR; dia++) {
         const fecha = obtenerFecha(dia);
         for (let hora = horaInicial; hora < horaFinal; hora++) {
             const horaInicio = crearHora(hora, minutos);
+          
+            //inicio logica de superpocision de nuevos turnos con los reservados
+            const inicioNuevo = horaInicio.getUTCHours() * 60 + horaInicio.getUTCMinutes();
+            const finNuevo = inicioNuevo + 60;
+
+            const seSuperpone = turnosReservados.some((turnoReservado) => {
+              if (turnoReservado.fecha.getTime() !== fecha.getTime()) {
+                return false;
+              }
+
+              const inicioReservado = turnoReservado.horaInicio.getUTCHours() * 60 + turnoReservado.horaInicio.getUTCMinutes();
+              const finReservado = inicioReservado + 60;
+
+              return ( inicioNuevo < finReservado && finNuevo > inicioReservado
+            );
+            });
+
+            //fin logica de superposicion de turnos reservados
+
+          if (!seSuperpone) {
             turnos.push({
                 fecha: fecha,
                 horaInicio: horaInicio,
                 precio: cancha.precioTurno,
                 idCancha: cancha.id,
             });
-
+          }
     
         }
    }
@@ -54,5 +85,5 @@ function obtenerFecha(diasDesdeHoy) { //devuelve en formato fecha, la fecha de h
 }
 
 function crearHora(hora, minutos) { // aunque PostgreSQL guarde solo la hora, prisma admite el formato datetime completo, la fecha es una cualquera
-  return new Date(Date.UTC(2026, 0, 1, hora, minutos, 0));
+  return new Date(Date.UTC(1888, 0, 1, hora, minutos, 0));
 }
