@@ -1,4 +1,12 @@
 import React from 'react';
+import { NavLink } from 'react-router-dom';
+
+const items = [
+    { to: '/admin', label: 'Calendario', icon: '📅', end: true },
+    { to: '/admin/reportes', label: 'Reportes', icon: '📊' },
+    { to: '/admin/canchas', label: 'Canchas y precios', icon: '⚙️' },
+    { to: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
+];
 
 export default function Sidebar() {
     return (
@@ -8,25 +16,23 @@ export default function Sidebar() {
             </div>
 
             <nav className="flex flex-col gap-1">
-                <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-verde-principal text-blanco font-medium shadow-sm transition">
-                    <span>📅</span>
-                    <span>Calendario</span>
-                </button>
-
-                <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-black/5 font-medium transition">
-                    <span>📊</span>
-                    <span>Reportes</span>
-                </button>
-
-                <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-black/5 font-medium transition">
-                    <span>⚙️</span>
-                    <span>Canchas y precios</span>
-                </button>
-
-                <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-black/5 font-medium transition">
-                    <span>👥</span>
-                    <span>Usuarios</span>
-                </button>
+                {items.map((item) => (
+                    <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition ${
+                                isActive
+                                    ? 'bg-verde-principal text-blanco shadow-sm'
+                                    : 'text-gray-700 hover:bg-black/5'
+                            }`
+                        }
+                    >
+                        <span>{item.icon}</span>
+                        <span>{item.label}</span>
+                    </NavLink>
+                ))}
             </nav>
         </aside>
     );
