@@ -61,8 +61,10 @@ export async function altaUsuario({
 
     if (typeof contrasena !== "string") {
         throw new Error("La contraseña no es valida");
+    } //que contenga 6 caracteres como minimo una mayuscula, una minuscula y un numero
+    if (!esContrasenaValida(contrasena)) {
+        throw new Error("La contraseña no es valida, debe contener al menos 6 caracteres, una mayúscula, una minúscula y un número");
     }
-
 
 // fin validaciones
 
@@ -103,4 +105,10 @@ function normalizarTelefono(telefono) {
 
 function esTelefonoValido(telefono) {
   return /^\+?[0-9]{7,15}$/.test(telefono);
+}
+
+function esContrasenaValida(contrasena) {
+if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,}$/.test(contrasena)) {
+        throw new Error("La contraseña debe tener al menos 6 caracteres, una mayúscula, una minúscula y un número");
+    }
 }
