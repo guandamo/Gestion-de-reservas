@@ -1,13 +1,23 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Navbar() {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
     const handleLogout = () => {
-        // TODO: cuando tengas auth real (JWT), acá también limpiás el token guardado
-        navigate('/login');
+        logout();
+        navigate('/login', { replace: true });
     };
+
+    const iniciales =
+        user
+            ? `${(user.nombre?.[0] || '').toUpperCase()}${(user.apellido?.[0] || '').toUpperCase()}`
+            : 'AD';
+    const nombreVisible = user
+        ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || 'Administrador'
+        : 'Administrador';
 
     return (
         <header className="bg-verde-principal text-blanco px-6 py-3 flex items-center justify-between shadow-md">
@@ -25,9 +35,9 @@ export default function Navbar() {
             {/* Sección Derecha: Usuario */}
             <div className="flex items-center gap-3">
                 <div className="bg-verde-claro text-verde-principal font-bold w-9 h-9 rounded-full flex items-center justify-center text-sm">
-                    AD
+                    {iniciales}
                 </div>
-                <span className="text-sm font-medium hidden sm:inline">Administrador</span>
+                <span className="text-sm font-medium hidden sm:inline">{nombreVisible}</span>
 
                 <button
                     onClick={handleLogout}

@@ -1,48 +1,48 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../api/client.js';
 
-// --- Corresponde a la tabla TipoCancha (idTipoCancha PK, descripcion) ---
-// TODO: reemplazar por GET /tipos-cancha cuando esté el backend
-const mockTiposCancha = [
-    { idTipoCancha: 1, descripcion: 'Fútbol 5' },
-    { idTipoCancha: 2, descripcion: 'Fútbol 7' },
-    { idTipoCancha: 3, descripcion: 'Fútbol 11' },
-];
-
-// --- Corresponde a la tabla Cancha (idCancha PK, idTipoCancha FK, nombre, Activa) ---
-// Nota: precio y horario NO están acá en el modelo real — viven en Turno.
-// TODO: reemplazar por GET /canchas cuando esté el backend
-const mockCanchas = [
-    { idCancha: 1, idTipoCancha: 3, nombre: 'Cancha 1', activa: true },
-    { idCancha: 2, idTipoCancha: 2, nombre: 'Cancha 2', activa: true },
-    { idCancha: 3, idTipoCancha: 1, nombre: 'Cancha 3', activa: true },
-    { idCancha: 4, idTipoCancha: 1, nombre: 'Cancha 4', activa: false },
-];
-
-// --- Valores "base" por cancha, usados para generar los Turno de esa cancha ---
-// En el modelo real, PrecioHora/HoraInicio/HoraFin están en cada Turno individual
-// (cada franja horaria puede tener su propio precio/estado). Esto es solo el
-// default que se usa al crear los turnos de una cancha, no un campo de Cancha.
-// TODO: cuando haya backend, esto se resuelve con un endpoint tipo
-// POST /canchas/:id/turnos/generar { precioHora, horaInicio, horaFin }
-const mockConfigTurnos = {
-    1: { precioHora: 4500, horaInicio: '08:00', horaFin: '23:00' },
-    2: { precioHora: 3200, horaInicio: '08:00', horaFin: '22:00' },
-    3: { precioHora: 2800, horaInicio: '08:00', horaFin: '22:00' },
-    4: { precioHora: 2800, horaInicio: '08:00', horaFin: '22:00' },
+const formVacio = {
+    nombre: '',
+    idTipoCancha: '',
+    precioTurno: '',
+    horaInicio: '08:00',
+    horaFin: '22:00',
+    activa: true,
 };
 
-const formVacio = { nombre: '', idTipoCancha: '', precioHora: '', horaInicio: '08:00', horaFin: '22:00', activa: true };
-
 export default function CanchasYPrecios() {
-    const [tiposCancha] = useState(mockTiposCancha);
-    const [canchas, setCanchas] = useState(mockCanchas);
-    const [configTurnos, setConfigTurnos] = useState(mockConfigTurnos);
+    const [tiposCancha, setTiposCancha] = useState([]);
+    const [canchas, setCanchas] = useState([]);
     const [mostrarForm, setMostrarForm] = useState(false);
     const [editandoId, setEditandoId] = useState(null);
     const [form, setForm] = useState(formVacio);
+    const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState('');
+    const [guardando, setGuardando] = useState(false);
+
+    async function cargar() {
+        setCargando(true);
+        setError('');
+        try {
+            const [tipos, cts] = await Promise.all([
+                api.get('/court-types'),
+                api.get('/courts?incluirInactivos=true'),
+            ]);
+            setTiposCancha(tipos.tipos);
+            setCanchas(cts.canchas);
+        } catch (e) {
+            setError(e.message || 'No se pudieron cargar las canchas.');
+        } finally {
+            setCargando(false);
+        }
+    }
+
+    useEffect(() => {
+        cargar();
+    }, []);
 
     const descripcionTipo = (idTipoCancha) =>
-        tiposCancha.find((t) => t.idTipoCancha === Number(idTipoCancha))?.descripcion || '—';
+        tiposCancha.find((t) => t.id === Number(idTipoCancha))?.descripcion || '—';
 
     const abrirNueva = () => {
         setEditandoId(null);
@@ -51,14 +51,13 @@ export default function CanchasYPrecios() {
     };
 
     const abrirEditar = (cancha) => {
-        const config = configTurnos[cancha.idCancha] || {};
-        setEditandoId(cancha.idCancha);
+        setEditandoId(cancha.id);
         setForm({
             nombre: cancha.nombre,
-            idTipoCancha: cancha.idTipoCancha,
-            precioHora: config.precioHora ?? '',
-            horaInicio: config.horaInicio ?? '08:00',
-            horaFin: config.horaFin ?? '22:00',
+            idTipoCancha: String(cancha.idTipoCancha),
+            precioTurno: Number(cancha.precioTurno),
+            horaInicio: toHora(cancha.horaInicio),
+            horaFin: toHora(cancha.horaFin),
             activa: cancha.activa,
         });
         setMostrarForm(true);
@@ -70,48 +69,54 @@ export default function CanchasYPrecios() {
         setForm(formVacio);
     };
 
-    const handleGuardar = (e) => {
+    const handleGuardar = async (e) => {
         e.preventDefault();
-
-        if (!form.nombre || !form.idTipoCancha || !form.precioHora) {
+        if (!form.nombre || !form.idTipoCancha || !form.precioTurno) {
             alert('Completá nombre, tipo de cancha y precio.');
             return;
         }
 
-        const idTipoCancha = Number(form.idTipoCancha);
+        const payload = {
+            nombre: form.nombre,
+            idTipoCancha: Number(form.idTipoCancha),
+            precioTurno: Number(form.precioTurno),
+            horaInicio: form.horaInicio,
+            horaFin: form.horaFin,
+            activa: form.activa,
+        };
 
-        if (editandoId) {
-            // TODO: PUT /canchas/:id (nombre, idTipoCancha, Activa)
-            setCanchas((prev) =>
-                prev.map((c) =>
-                    c.idCancha === editandoId ? { ...c, nombre: form.nombre, idTipoCancha, activa: form.activa } : c
-                )
-            );
-            // TODO: PUT /canchas/:id/turnos/config (precioHora, horaInicio, horaFin)
-            setConfigTurnos((prev) => ({
-                ...prev,
-                [editandoId]: { precioHora: Number(form.precioHora), horaInicio: form.horaInicio, horaFin: form.horaFin },
-            }));
-        } else {
-            // TODO: POST /canchas (nombre, idTipoCancha, Activa)
-            const nuevoId = Math.max(0, ...canchas.map((c) => c.idCancha)) + 1;
-            setCanchas((prev) => [...prev, { idCancha: nuevoId, nombre: form.nombre, idTipoCancha, activa: form.activa }]);
-            // TODO: POST /canchas/:id/turnos/generar (precioHora, horaInicio, horaFin)
-            setConfigTurnos((prev) => ({
-                ...prev,
-                [nuevoId]: { precioHora: Number(form.precioHora), horaInicio: form.horaInicio, horaFin: form.horaFin },
-            }));
+        try {
+            setGuardando(true);
+            if (editandoId) {
+                await api.patch(`/courts/${editandoId}`, payload);
+            } else {
+                await api.post('/courts', payload);
+            }
+            await cargar();
+            cerrarForm();
+        } catch (e2) {
+            alert(e2.message || 'No se pudo guardar la cancha.');
+        } finally {
+            setGuardando(false);
         }
-
-        cerrarForm();
     };
 
-    const handleEliminar = (idCancha) => {
-        const cancha = canchas.find((c) => c.idCancha === idCancha);
-        if (!window.confirm(`¿Eliminar "${cancha?.nombre}"? Esta acción no se puede deshacer.`)) return;
-
-        // TODO: DELETE /canchas/:id (probablemente soft-delete, según el patrón "eliminado" de otras tablas)
-        setCanchas((prev) => prev.filter((c) => c.idCancha !== idCancha));
+    const handleEliminar = async (cancha) => {
+        if (!window.confirm(`¿Dar de baja "${cancha.nombre}"? Quedará inactiva hasta reactivarla.`))
+            return;
+        try {
+            await api.patch(`/courts/${cancha.id}`, {
+                nombre: cancha.nombre,
+                idTipoCancha: cancha.idTipoCancha,
+                precioTurno: Number(cancha.precioTurno),
+                horaInicio: toHora(cancha.horaInicio),
+                horaFin: toHora(cancha.horaFin),
+                activa: false,
+            });
+            await cargar();
+        } catch (e) {
+            alert(e.message || 'No se pudo dar de baja la cancha.');
+        }
     };
 
     return (
@@ -125,6 +130,12 @@ export default function CanchasYPrecios() {
                     <span className="text-lg leading-none">+</span> Nueva cancha
                 </button>
             </div>
+
+            {error && (
+                <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg mb-4">
+                    {error}
+                </div>
+            )}
 
             {mostrarForm && (
                 <form
@@ -151,7 +162,7 @@ export default function CanchasYPrecios() {
                         >
                             <option value="">Seleccionar...</option>
                             {tiposCancha.map((t) => (
-                                <option key={t.idTipoCancha} value={t.idTipoCancha}>
+                                <option key={t.id} value={t.id}>
                                     {t.descripcion}
                                 </option>
                             ))}
@@ -163,8 +174,8 @@ export default function CanchasYPrecios() {
                         <input
                             type="number"
                             min="0"
-                            value={form.precioHora}
-                            onChange={(e) => setForm({ ...form, precioHora: e.target.value })}
+                            value={form.precioTurno}
+                            onChange={(e) => setForm({ ...form, precioTurno: e.target.value })}
                             placeholder="3000"
                             className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
                         />
@@ -212,72 +223,98 @@ export default function CanchasYPrecios() {
                         </button>
                         <button
                             type="submit"
-                            className="bg-verde-principal hover:bg-verde-principal/90 text-blanco text-sm font-medium px-5 py-2 rounded-lg transition"
+                            disabled={guardando}
+                            className="bg-verde-principal hover:bg-verde-principal/90 text-blanco text-sm font-medium px-5 py-2 rounded-lg transition disabled:opacity-60"
                         >
-                            {editandoId ? 'Guardar cambios' : 'Crear cancha'}
+                            {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear cancha'}
                         </button>
                     </div>
                 </form>
             )}
 
             <div className="flex flex-col gap-3">
-                {canchas.map((cancha) => {
-                    const config = configTurnos[cancha.idCancha] || {};
-                    return (
-                        <div
-                            key={cancha.idCancha}
-                            className="bg-[#222222] rounded-xl border border-white/5 px-5 py-4 flex items-center justify-between"
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className={`w-2.5 h-2.5 rounded-full ${cancha.activa ? 'bg-green-500' : 'bg-gray-500'}`} />
-                                <div>
-                                    <p className="text-blanco font-medium">{cancha.nombre}</p>
-                                    <p className="text-gray-400 text-xs">
-                                        {descripcionTipo(cancha.idTipoCancha)}
-                                        {!cancha.activa && ' · Inactiva'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-8">
-                                <div className="text-right">
-                                    <p className="text-gray-400 text-xs">Precio</p>
-                                    <p className="text-blanco text-sm font-medium">
-                                        {config.precioHora ? `$${config.precioHora.toLocaleString('es-AR')}/hr` : '—'}
-                                    </p>
-                                </div>
-                                <div className="text-right hidden sm:block">
-                                    <p className="text-gray-400 text-xs">Horario</p>
-                                    <p className="text-blanco text-sm font-medium">
-                                        {config.horaInicio && config.horaFin ? `${config.horaInicio} - ${config.horaFin}` : '—'}
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={() => abrirEditar(cancha)}
-                                        className="text-gray-300 hover:text-verde-claro transition"
-                                        aria-label={`Editar ${cancha.nombre}`}
-                                    >
-                                        ✏️
-                                    </button>
-                                    <button
-                                        onClick={() => handleEliminar(cancha.idCancha)}
-                                        className="text-red-400 hover:text-red-300 transition"
-                                        aria-label={`Eliminar ${cancha.nombre}`}
-                                    >
-                                        🗑️
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {canchas.length === 0 && (
+                {cargando ? (
+                    <p className="text-gray-400 text-center py-8">Cargando canchas...</p>
+                ) : canchas.length === 0 ? (
                     <p className="text-gray-400 text-center py-8">No hay canchas cargadas todavía.</p>
+                ) : (
+                    canchas.map((cancha) => {
+                        const horaIni = toHora(cancha.horaInicio);
+                        const horaFin = toHora(cancha.horaFin);
+                        return (
+                            <div
+                                key={cancha.id}
+                                className="bg-[#222222] rounded-xl border border-white/5 px-5 py-4 flex items-center justify-between"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className={`w-2.5 h-2.5 rounded-full ${cancha.activa ? 'bg-green-500' : 'bg-gray-500'}`} />
+                                    <div>
+                                        <p className="text-blanco font-medium">{cancha.nombre}</p>
+                                        <p className="text-gray-400 text-xs">
+                                            {descripcionTipo(cancha.idTipoCancha)}
+                                            {!cancha.activa && ' · Inactiva'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-8">
+                                    <div className="text-right">
+                                        <p className="text-gray-400 text-xs">Precio</p>
+                                        <p className="text-blanco text-sm font-medium">
+                                            ${Number(cancha.precioTurno).toLocaleString('es-AR')}/hr
+                                        </p>
+                                    </div>
+                                    <div className="text-right hidden sm:block">
+                                        <p className="text-gray-400 text-xs">Horario</p>
+                                        <p className="text-blanco text-sm font-medium">
+                                            {horaIni} - {horaFin}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => abrirEditar(cancha)}
+                                            className="text-gray-300 hover:text-verde-claro transition"
+                                            aria-label={`Editar ${cancha.nombre}`}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => handleEliminar(cancha)}
+                                            className="text-red-400 hover:text-red-300 transition"
+                                            aria-label={`Dar de baja ${cancha.nombre}`}
+                                            title="Baja lógica (soft-delete)"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })
                 )}
             </div>
         </div>
     );
+}
+
+// Convierte "HH:MM:SS" o Date a "HH:MM"
+function toHora(value) {
+    if (!value) return '';
+    if (typeof value === 'string') {
+        const m = value.match(/^(\d{2}:\d{2})/);
+        return m ? m[1] : '';
+    }
+    if (value instanceof Date) {
+        const hh = String(value.getUTCHours()).padStart(2, '0');
+        const mm = String(value.getUTCMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+    }
+    // Si vino como ISO
+    try {
+        const d = new Date(value);
+        return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+    } catch {
+        return '';
+    }
 }

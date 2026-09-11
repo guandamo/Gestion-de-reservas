@@ -12,24 +12,38 @@ datasource db {
 }
 
 model TipoCancha {
-  id          Int    @id @default(autoincrement())
-  descripcion String @unique
+  id           Int      @id @default(autoincrement())
+  descripcion  String   @unique
+  createdAt    DateTime @default(now())
+  modifiedAt   DateTime @updatedAt
+  operacion    String?
+  modificadoPor Int?
+  modificador  Usuario? @relation("TipoCancha_modificador", fields: [modificadoPor], references: [id], onDelete: SetNull)
 
   canchas Cancha[]
 }
 
 model Cancha {
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  activa      Boolean  @default(true)
-  horaInicio  DateTime @db.Time
-  horaFin     DateTime @db.Time
-  precioTurno Decimal  @db.Decimal(10, 2)
+  id            Int       @id @default(autoincrement())
+  nombre        String
+  activa        Boolean   @default(true)
+  horaInicio    DateTime  @db.Time
+  horaFin       DateTime  @db.Time
+  precioTurno   Decimal   @db.Decimal(10, 2)
+
+  // Auditoría nivel 1
+  createdAt     DateTime  @default(now())
+  modifiedAt    DateTime  @updatedAt
+  operacion     String?
+  modificadoPor Int?
+  modificador   Usuario?  @relation("Cancha_modificador", fields: [modificadoPor], references: [id], onDelete: SetNull)
 
   idTipoCancha Int
   tipoCancha   TipoCancha @relation(fields: [idTipoCancha], references: [id])
 
   turnos Turno[]
+
+  @@index([modificadoPor])
 }
 
 model Turno {
@@ -97,22 +111,49 @@ enum MetodoPago {
 }
 
 model Usuario {
-  id           Int        @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   nombre       String
   apellido     String
-  email        String     @unique
+  email        String    @unique
   contrasena   String
-  telefono     String     @unique
+  telefono     String    @unique
   rol          RolUsuario @default(USUARIO)
-  created_at   DateTime   @default(now())
-  modified_at  DateTime   @updatedAt
+  created_at   DateTime  @default(now())
+  modified_at  DateTime  @updatedAt
   ultimoCambio String?
-  activo       Boolean    @default(true)
+  activo       Boolean   @default(true)
 
-  reservas Reserva[]
+  // Auditoría nivel 1
+  modificadoPor Int?
+  modificador   Usuario?  @relation("Usuario_modificador", fields: [modificadoPor], references: [id], onDelete: SetNull)
+  modificados   Usuario[] @relation("Usuario_modificador")
+
+  reservas          Reserva[]
+  canchasModificadas  Cancha[]      @relation("Cancha_modificador")
+  tiposModificados    TipoCancha[]  @relation("TipoCancha_modificador")
+  auditLogs           AuditLog[]    @relation("AuditLog_performer")
+
+  @@index([modificadoPor])
 }
 
 enum RolUsuario {
   USUARIO
   ADMIN
+}
+
+// --- Nivel 2: historial global ---
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  entity      String
+  entityId    Int
+  operation   String
+  performedBy Int?
+  performer   Usuario? @relation("AuditLog_performer", fields: [performedBy], references: [id], onDelete: SetNull)
+  performedAt DateTime @default(now())
+  oldValues   Json?
+  newValues   Json?
+
+  @@index([entity, entityId])
+  @@index([performedBy])
+  @@index([performedAt])
 }
