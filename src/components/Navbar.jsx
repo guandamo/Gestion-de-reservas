@@ -2,7 +2,20 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export default function Navbar() {
+const ROLE_CONFIG = {
+    admin: {
+        badge: 'Admin',
+        initials: 'AD',
+        label: 'Administrador'
+    },
+    user: {
+        badge: 'Usuario',
+        initials: 'U',
+        label: 'Usuario'
+    }
+};
+
+export default function Navbar({ role = 'admin' }) {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
@@ -28,7 +41,7 @@ export default function Navbar() {
                 </div>
                 <h1 className="text-xl font-bold tracking-wide">Gestión de canchas</h1>
                 <span className="bg-black/30 text-xs px-2.5 py-1 rounded-full text-verde-claro font-medium border border-verde-claro/20">
-                    Admin
+                    {currentRole.badge}
                 </span>
             </div>
 
