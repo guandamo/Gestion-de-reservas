@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
 import Calendario from '../components/Calendario';
 import MisReservas from '../components/MisReservas';
+import { Outlet } from 'react-router-dom'; //agrege esto
 
 export default function UserDashboard({ onLogout }) {
 
