@@ -45,7 +45,7 @@ export async function getUser(req, res) {
 
 /**
  * PATCH /api/users/:id
- * Modifica nombre/apellido/telefono/email/rol. No toca contraseña ni estado aquí.
+ * Modifica nombre/apellido/email/rol. No toca contraseña ni estado aquí.
  */
 export async function updateUser(req, res) {
   const id = Number(req.params.id);
@@ -53,7 +53,7 @@ export async function updateUser(req, res) {
     throw new HttpError(400, "ID inválido");
   }
 
-  const { nombre, apellido, telefono, email, rol } = req.body ?? {};
+  const { nombre, apellido, email, rol } = req.body ?? {};
 
   const previous = await prisma.usuario.findUnique({ where: { id } });
   if (!previous) throw new HttpError(404, "Usuario no encontrado");
@@ -62,8 +62,6 @@ export async function updateUser(req, res) {
   if (typeof nombre === "string" && nombre.trim()) data.nombre = nombre.trim();
   if (typeof apellido === "string" && apellido.trim())
     data.apellido = apellido.trim();
-  if (typeof telefono === "string" && telefono.trim())
-    data.telefono = telefono.replace(/[\s()-]/g, "");
   if (typeof email === "string" && email.trim())
     data.email = email.trim().toLowerCase();
   if (rol && ROLES_PERMITIDOS.has(rol)) data.rol = rol;

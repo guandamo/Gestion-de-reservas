@@ -54,7 +54,7 @@ export async function getReports(req, res) {
     turnosHoy,
     turnosReservadosHoy,
     ingresosMes: Number(pagosPagadosEnMes._sum.monto ?? 0),
-    pagosMes: pagosPagadosEnMes._count,
+    pagosMes: pagosPagadosEnMes._count?._all ?? 0,
     pagosPendientes,
     reservasEnMes: reservasEnMes.length,
   });

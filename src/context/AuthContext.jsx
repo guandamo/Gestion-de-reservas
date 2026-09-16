@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { api, tokenStore } from "../api/client.js";
 
 const AuthContext = createContext(null);
@@ -18,18 +18,34 @@ export function AuthProvider({ children }) {
   const [ready, setReady] = useState(true);
 
   useEffect(() => {
-    // Al montar, si hay token pero no user, podríamos hidratar más adelante
     setReady(true);
+  }, []);
+
+  /**
+   * Helper interno: persiste token y usuario en localStorage y estado.
+   */
+  const persistSession = useCallback((tokenValue, userValue) => {
+    tokenStore.set(tokenValue);
+    localStorage.setItem(USER_KEY, JSON.stringify(userValue));
+    setToken(tokenValue);
+    setUser(userValue);
   }, []);
 
   const login = useCallback(async (email, contrasena) => {
     const data = await api.post("/auth/login", { email, contrasena });
-    tokenStore.set(data.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(data.usuario));
-    setToken(data.token);
-    setUser(data.usuario);
+    persistSession(data.token, data.usuario);
     return data.usuario;
-  }, []);
+  }, [persistSession]);
+
+  /**
+   * Registro público: crea el usuario y deja la sesión iniciada.
+   * Espera {nombre, apellido, email, password, confirmPassword}.
+   */
+  const register = useCallback(async (payload) => {
+    const data = await api.post("/auth/register", payload);
+    persistSession(data.token, data.usuario);
+    return data.usuario;
+  }, [persistSession]);
 
   const logout = useCallback(() => {
     tokenStore.clear();
@@ -39,8 +55,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ token, user, ready, login, logout }),
-    [token, user, ready, login, logout],
+    () => ({ token, user, ready, login, register, logout }),
+    [token, user, ready, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

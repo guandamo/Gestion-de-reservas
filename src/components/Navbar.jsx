@@ -1,36 +1,39 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const ROLE_CONFIG = {
-    admin: {
+    ADMIN: {
         badge: 'Admin',
         initials: 'AD',
         label: 'Administrador'
     },
-    user: {
+    USUARIO: {
         badge: 'Usuario',
         initials: 'U',
         label: 'Usuario'
     }
 };
 
-export default function Navbar({ role = 'admin' }) {
+const DEFAULT_ROLE = 'USUARIO';
+
+export default function Navbar() {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+
+    const roleKey = user?.rol && ROLE_CONFIG[user.rol] ? user.rol : DEFAULT_ROLE;
+    const currentRole = ROLE_CONFIG[roleKey];
 
     const handleLogout = () => {
         logout();
         navigate('/login', { replace: true });
     };
 
-    const iniciales =
-        user
-            ? `${(user.nombre?.[0] || '').toUpperCase()}${(user.apellido?.[0] || '').toUpperCase()}`
-            : 'AD';
+    const iniciales = user
+        ? `${(user.nombre?.[0] || '').toUpperCase()}${(user.apellido?.[0] || '').toUpperCase() || currentRole.initials[1]}`
+        : currentRole.initials;
     const nombreVisible = user
-        ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || 'Administrador'
-        : 'Administrador';
+        ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || currentRole.label
+        : currentRole.label;
 
     return (
         <header className="bg-verde-principal text-blanco px-6 py-3 flex items-center justify-between shadow-md">

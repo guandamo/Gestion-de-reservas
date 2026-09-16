@@ -2,10 +2,7 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { prisma } from "../src/config/prisma.js";
 
-/**
- * Seed idempotente.
- * - Crea un ADMIN inicial si no existe ya.
- */
+// Seed idempotente. Crea un ADMIN inicial si no existe.
 async function main() {
   const adminEmail = "admin@canchas.com";
   const existe = await prisma.usuario.findUnique({ where: { email: adminEmail } });
@@ -22,7 +19,6 @@ async function main() {
       apellido: "Principal",
       email: adminEmail,
       contrasena: contrasenaHash,
-      telefono: "+5491100000000",
       rol: "ADMIN",
       ultimoCambio: "ALTA",
     },

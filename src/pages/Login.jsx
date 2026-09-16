@@ -3,6 +3,38 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ApiError } from '../api/client.js';
 
+// --- validaciones en espejo del backend ---
+function validarNombre(v) {
+  const t = (v ?? '').trim();
+  if (!t) return 'El nombre es obligatorio.';
+  if (t.length < 2) return 'El nombre debe tener al menos 2 caracteres.';
+  if (t.length > 50) return 'El nombre debe tener como máximo 50 caracteres.';
+  return null;
+}
+function validarApellido(v) {
+  const t = (v ?? '').trim();
+  if (!t) return 'El apellido es obligatorio.';
+  if (t.length < 2) return 'El apellido debe tener al menos 2 caracteres.';
+  if (t.length > 50) return 'El apellido debe tener como máximo 50 caracteres.';
+  return null;
+}
+function validarEmail(v) {
+  const t = (v ?? '').trim();
+  if (!t) return 'El email es obligatorio.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return 'El email no tiene un formato válido.';
+  return null;
+}
+function validarPassword(v) {
+  if (!v) return 'La contraseña es obligatoria.';
+  if (v.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
+  return null;
+}
+function validarConfirm(v, password) {
+  if (!v) return 'Por favor, confirmá tu contraseña.';
+  if (v !== password) return 'Las contraseñas no coinciden.';
+  return null;
+}
+
 export default function Login() {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
@@ -53,33 +85,13 @@ export default function Login() {
         setPassword('');
     };
 
-    // Bloqueos según UI: el registro queda deshabilitado por ahora (no estaba en alcance)
     if (!isLoginView) {
         return (
-            <div className="min-h-screen flex font-sans animate-fadeIn">
-                <div className="hidden lg:flex w-1/2 bg-verde-principal flex-col justify-center items-center p-12">
-                    <h1 className="text-6xl font-bold text-white mb-6 text-center leading-tight">
-                        Gestión de <br /> Canchas
-                    </h1>
-                    <div className="w-16 h-1 bg-white rounded"></div>
-                </div>
-                <div className="w-full lg:w-1/2 bg-[#222222] flex justify-center items-center p-8">
-                    <div className="w-full max-w-md text-center text-gray-300">
-                        <h2 className="text-3xl font-bold text-white mb-4">Registro no disponible</h2>
-                        <p className="text-gray-400 mb-6 text-sm">
-                            El alta de cuentas se realiza exclusivamente desde el panel de administración.
-                            Si necesitás acceso, contactá al administrador del sistema.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={toggleView}
-                            className="text-verde-claro hover:text-white font-medium transition"
-                        >
-                            ← Volver al inicio de sesión
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <RegisterView
+                onSwitchToLogin={toggleView}
+                navigate={navigate}
+                from={from}
+            />
         );
     }
 
@@ -172,6 +184,192 @@ export default function Login() {
 
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ============================================================
+// Registro
+// ============================================================
+function RegisterView({ onSwitchToLogin, navigate, from }) {
+    const { register } = useAuth();
+
+    const [nombre, setNombre] = useState('');
+    const [apellido, setApellido] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [errors, setErrors] = useState({});
+    const [serverError, setServerError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const validarTodo = () => {
+        const next = {
+            nombre: validarNombre(nombre),
+            apellido: validarApellido(apellido),
+            email: validarEmail(email),
+            password: validarPassword(password),
+            confirmPassword: validarConfirm(confirmPassword, password),
+        };
+        setErrors(next);
+        return Object.values(next).every((e) => !e);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setServerError('');
+        if (!validarTodo()) return;
+
+        try {
+            setLoading(true);
+            const user = await register({
+                nombre: nombre.trim(),
+                apellido: apellido.trim(),
+                email: email.trim().toLowerCase(),
+                password,
+                confirmPassword,
+            });
+            const destino =
+                from && from !== '/login'
+                    ? from
+                    : user.rol === 'ADMIN'
+                        ? '/admin'
+                        : '/user';
+            navigate(destino, { replace: true });
+        } catch (err) {
+            if (err instanceof ApiError && err.status === 409) {
+                setServerError(
+                    'Ya existe una cuenta registrada con ese correo electrónico.',
+                );
+            } else if (err instanceof ApiError && err.status === 400) {
+                setServerError(err.message || 'Datos inválidos.');
+            } else {
+                setServerError(err?.message || 'No se pudo crear la cuenta.');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Para que el botón se habilite solo cuando no hay errores visibles
+    const hayErroresVisibles =
+        !!errors.nombre ||
+        !!errors.apellido ||
+        !!errors.email ||
+        !!errors.password ||
+        !!errors.confirmPassword;
+
+    return (
+        <div className="min-h-screen flex font-sans animate-fadeIn">
+            {/* MITAD IZQUIERDA */}
+            <div className="hidden lg:flex w-1/2 bg-verde-principal flex-col justify-center items-center p-12">
+                <h1 className="text-6xl font-bold text-white mb-6 text-center leading-tight">
+                    Creá tu <br /> cuenta
+                </h1>
+                <div className="w-16 h-1 bg-white rounded"></div>
+            </div>
+
+            {/* MITAD DERECHA */}
+            <div className="w-full lg:w-1/2 bg-[#222222] flex justify-center items-center p-8">
+                <div className="w-full max-w-md">
+                    <h2 className="text-4xl font-bold text-white mb-2">Crear Cuenta</h2>
+                    <p className="text-gray-400 mb-6 text-sm">
+                        Completá tus datos para registrarte
+                    </p>
+
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+                        <CampoTexto
+                            label="Nombre"
+                            value={nombre}
+                            onChange={setNombre}
+                            error={errors.nombre}
+                            placeholder="Juan"
+                            autoComplete="given-name"
+                        />
+                        <CampoTexto
+                            label="Apellido"
+                            value={apellido}
+                            onChange={setApellido}
+                            error={errors.apellido}
+                            placeholder="Pérez"
+                            autoComplete="family-name"
+                        />
+                        <CampoTexto
+                            label="Correo electrónico"
+                            type="email"
+                            value={email}
+                            onChange={setEmail}
+                            error={errors.email}
+                            placeholder="usuario@email.com"
+                            autoComplete="email"
+                        />
+                        <CampoTexto
+                            label="Contraseña"
+                            type="password"
+                            value={password}
+                            onChange={setPassword}
+                            error={errors.password}
+                            placeholder="Mínimo 8 caracteres"
+                            autoComplete="new-password"
+                        />
+                        <CampoTexto
+                            label="Confirmar contraseña"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={setConfirmPassword}
+                            error={errors.confirmPassword}
+                            placeholder="Repetí tu contraseña"
+                            autoComplete="new-password"
+                        />
+
+                        {serverError && (
+                            <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center mt-1">
+                                {serverError}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={loading || hayErroresVisibles}
+                            className="w-full bg-white text-black font-bold text-lg py-3 rounded-lg mt-2 hover:bg-gray-200 transition disabled:opacity-60"
+                        >
+                            {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={onSwitchToLogin}
+                            className="text-center text-sm text-verde-claro hover:text-white mt-2 transition"
+                        >
+                            ← Ya tengo cuenta, volver al login
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Campo de texto reutilizable, con ícono y mensaje de error debajo
+function CampoTexto({ label, value, onChange, error, type = 'text', placeholder, autoComplete }) {
+    return (
+        <div>
+            <label className="block text-sm font-medium text-white mb-2">{label}</label>
+            <input
+                type={type}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                autoComplete={autoComplete}
+                className={`w-full bg-white text-black rounded-lg px-4 py-3 focus:outline-none focus:ring-2 border ${
+                    error
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-transparent focus:ring-verde-principal'
+                }`}
+            />
+            {error && (
+                <p className="text-red-400 text-xs mt-1">{error}</p>
+            )}
         </div>
     );
 }

@@ -6,51 +6,39 @@ export async function loginUsuario({
   email,
   contrasena,
 } = {}) {
-    //validaciones 
-    if (email == null || contrasena == null) {
-        throw new Error("Faltan parámetros");
-    }
 
-    if (typeof email !== "string" || typeof contrasena !== "string") {
-        throw new Error("Credenciales incorrectas");
-    }
+  if (email == null || contrasena == null) {
+    throw new Error("Faltan parámetros");
+  }
 
-    //fin validaciones
+  if (typeof email !== "string" || typeof contrasena !== "string") {
+    throw new Error("Credenciales incorrectas");
+  }
 
-    const emailNormalizado = email.trim().toLowerCase();
-    const usuario = await prisma.usuario.findUnique({
-        where: {
-            email: emailNormalizado,
-        },
-    });
-    if (!usuario) {
-        throw new Error("datos no validos");
-    }
+  const emailNormalizado = email.trim().toLowerCase();
+  const usuario = await prisma.usuario.findUnique({
+    where: { email: emailNormalizado },
+  });
+  if (!usuario) {
+    throw new Error("datos no validos");
+  }
 
-    if (!usuario.activo) {
-        throw new Error("El usuario está desactivado");
-    }
+  if (!usuario.activo) {
+    throw new Error("El usuario está desactivado");
+  }
 
+  const contrasenaCorrecta = await bcrypt.compare(contrasena, usuario.contrasena);
+  if (!contrasenaCorrecta) {
+    throw new Error("datos no validos");
+  }
 
-    const contrasenaCorrecta = await bcrypt.compare(
-        contrasena,
-        usuario.contrasena
-     );
-    if (!contrasenaCorrecta) {
-        throw new Error("datos no validos");
-    }
-
-
-    //crear token JWT
-    const token = jwt.sign(
+  const token = jwt.sign(
     {
       idUsuario: usuario.id,
       rol: usuario.rol,
     },
     process.env.JWT_SECRET,
-    {
-      expiresIn: "1h",
-    }
+    { expiresIn: "1h" },
   );
 
   return {
@@ -60,9 +48,7 @@ export async function loginUsuario({
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       email: usuario.email,
-      telefono: usuario.telefono,
       rol: usuario.rol,
     },
   };
-
 }

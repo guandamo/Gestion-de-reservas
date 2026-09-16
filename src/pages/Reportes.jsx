@@ -61,6 +61,16 @@ export default function Reportes() {
             : formatMonto(stats.ingresosMes)
         : '$0';
 
+    // ¿Hay datos reales para mostrar? Si todo está en 0, mostramos un empty state.
+    const hayDatos = stats && (
+        stats.reservasHoy > 0 ||
+        stats.reservasEnMes > 0 ||
+        stats.turnosHoy > 0 ||
+        stats.ingresosMes > 0 ||
+        stats.pagosMes > 0 ||
+        stats.pagosPendientes > 0
+    );
+
     const mesesDisponibles = (() => {
         // Genera últimos 6 meses como opciones
         const out = [];
@@ -107,6 +117,30 @@ export default function Reportes() {
             {error && (
                 <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg mb-4">
                     {error}
+                </div>
+            )}
+
+            {cargando && !stats && (
+                <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+                    <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    Cargando reporte…
+                </div>
+            )}
+
+            {!cargando && stats && !hayDatos && (
+                <div className="bg-[#222222] border border-white/5 rounded-xl p-10 text-center">
+                    <div className="text-4xl mb-3">📊</div>
+                    <h3 className="text-blanco font-semibold text-lg mb-1">
+                        Sin actividad en este período
+                    </h3>
+                    <p className="text-gray-400 text-sm max-w-md mx-auto">
+                        No hay reservas ni pagos registrados en {mes}. Cuando los usuarios
+                        empiecen a reservar canchas y se confirmen pagos, vas a ver las
+                        métricas acá.
+                    </p>
                 </div>
             )}
 

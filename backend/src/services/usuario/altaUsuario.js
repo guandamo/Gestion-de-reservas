@@ -1,91 +1,76 @@
 import { prisma } from "../../config/prisma.js";
 import bcrypt from "bcrypt";
 
+/**
+ * Alta de usuario desde el panel administrativo (incluye rol y activo).
+ * Acepta: {nombre, apellido, email, contrasena, rol, activo}
+ */
 export async function altaUsuario({
   nombre,
   apellido,
   email,
   contrasena,
-  telefono,
+  rol,
+  activo,
 } = {}) {
 
-//inicio validaciones
-
-    if (nombre == null || apellido == null || email == null || contrasena == null || telefono == null) {
+  // ---- validaciones ----
+  if (nombre == null || apellido == null || email == null || contrasena == null) {
     throw new Error("Faltan parametros");
-    }
+  }
 
-
-    if (!esNombreValido(nombre)) {
+  if (!esNombreValido(nombre)) {
     throw new Error("El nombre tiene formato invalido");
-    }
-
-    if (!esNombreValido(apellido)) {
+  }
+  if (!esNombreValido(apellido)) {
     throw new Error("El apellido tiene formato invalido");
-    }
+  }
 
+  if (typeof email !== "string") {
+    throw new Error("El email es de formato no valido");
+  }
+  const emailNormalizado = email.trim().toLowerCase();
+  if (!esEmailValido(emailNormalizado)) {
+    throw new Error("El email es de formato no valido");
+  }
 
-    if (typeof email !== "string") {
-        throw new Error("El email es de formato no valido");
-    }
-    const emailNormalizado = email.trim().toLowerCase();
-    if (!esEmailValido(emailNormalizado)) {
-        throw new Error("El email es de formato no valido");
-    }
+  const usuarioConEmail = await prisma.usuario.findUnique({
+    where: { email: emailNormalizado },
+  });
+  if (usuarioConEmail) {
+    throw new Error("El mail ya está registrado");
+  }
 
+  if (typeof contrasena !== "string") {
+    throw new Error("La contraseña no es valida");
+  }
+  if (!esContrasenaValida(contrasena)) {
+    throw new Error(
+      "La contraseña no es valida, debe contener al menos 6 caracteres, una mayúscula, una minúscula y un número",
+    );
+  }
 
-    const usuarioConEmail = await prisma.usuario.findUnique({
-        where: {
-            email: emailNormalizado,
-        },
-    });
-    if (usuarioConEmail) {
-        throw new Error("El mail ya está registrado");
-    }
+  if (rol != null && !["USUARIO", "ADMIN"].includes(rol)) {
+    throw new Error("Rol invalido. Use USUARIO o ADMIN.");
+  }
 
-    if (typeof telefono !== "string") {
-        throw new Error("El telefono es incorrecto");
-    }
-    const telefonoNormalizado = normalizarTelefono(telefono);
-    if (!esTelefonoValido(telefonoNormalizado)) {
-        throw new Error("El teléfono es invalido");
-    }
-    const usuarioConTelefono = await prisma.usuario.findUnique({
-        where: {
-            telefono: telefonoNormalizado,
-        },
-    });
-    if (usuarioConTelefono) {
-        throw new Error("El telefono ya está registrado");
-    }
+  // ---- alta ----
+  const contrasenaHash = await bcrypt.hash(contrasena, 10);
 
-    if (typeof contrasena !== "string") {
-        throw new Error("La contraseña no es valida");
-    } //que contenga 6 caracteres como minimo una mayuscula, una minuscula y un numero
-    if (!esContrasenaValida(contrasena)) {
-        throw new Error("La contraseña no es valida, debe contener al menos 6 caracteres, una mayúscula, una minúscula y un número");
-    }
+  const usuario = await prisma.usuario.create({
+    data: {
+      nombre: nombre.trim(),
+      apellido: apellido.trim(),
+      email: emailNormalizado,
+      contrasena: contrasenaHash,
+      rol: rol ?? "USUARIO",
+      activo: activo ?? true,
+      ultimoCambio: "ALTA",
+    },
+  });
 
-// fin validaciones
-
-    const contrasenaHash = await bcrypt.hash(contrasena, 10);
-
-
-    const usuario = await prisma.usuario.create({
-        data: {
-            nombre: nombre.trim(),
-            apellido: apellido.trim(),
-            email: emailNormalizado,
-            contrasena: contrasenaHash,
-            telefono: telefonoNormalizado,
-            ultimoCambio: "ALTA",
-        },
-    });
-
-    return usuario;
-
+  return usuario;
 }
-
 
 function esNombreValido(valor) {
   return (
@@ -99,16 +84,10 @@ function esEmailValido(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function normalizarTelefono(telefono) {
-  return telefono.replace(/[\s()-]/g, "");
-}
-
-function esTelefonoValido(telefono) {
-  return /^\+?[0-9]{7,15}$/.test(telefono);
-}
-
 function esContrasenaValida(contrasena) {
-if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,}$/.test(contrasena)) {
-        throw new Error("La contraseña debe tener al menos 6 caracteres, una mayúscula, una minúscula y un número");
-    }
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{6,}$/.test(contrasena)) {
+    throw new Error(
+      "La contraseña debe tener al menos 6 caracteres, una mayúscula, una minúscula y un número",
+    );
+  }
 }
