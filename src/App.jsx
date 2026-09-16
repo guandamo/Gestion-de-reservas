@@ -1,6 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
+import { AuthProvider } from './context/AuthContext.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+
 import Login from './pages/Login';
 import AdminLayout from './layouts/AdminLayout';
 import UserDashboard from './pages/UserDashboard';
@@ -13,24 +16,40 @@ import Usuarios from './pages/Usuarios';
 export default function App() {
     return (
         <BrowserRouter>
-            <Routes>
-                {/* Login */}
-                <Route path="/login" element={<Login />} />
+            <AuthProvider>
+                <Routes>
+                    {/* Login */}
+                    <Route path="/login" element={<Login />} />
 
-                {/* Panel Admin: AdminLayout es el "padre" de todas estas rutas */}
-                <Route path="/admin" element={<AdminLayout />}>
-                    <Route index element={<Calendario />} />
-                    <Route path="reportes" element={<Reportes />} />
-                    <Route path="canchas" element={<CanchasYPrecios />} />
-                    <Route path="usuarios" element={<Usuarios />} />
-                </Route>
+                    {/* Panel Admin: protegido, solo ADMIN */}
+                    <Route
+                        path="/admin"
+                        element={
+                            <ProtectedRoute requireRole="ADMIN">
+                                <AdminLayout />
+                            </ProtectedRoute>
+                        }
+                    >
+                        <Route index element={<Calendario />} />
+                        <Route path="reportes" element={<Reportes />} />
+                        <Route path="canchas" element={<CanchasYPrecios />} />
+                        <Route path="usuarios" element={<Usuarios />} />
+                    </Route>
 
-                {/* Panel Usuario */}
-                <Route path="/user" element={<UserDashboard />} />
+                    {/* Panel Usuario: protegido, solo USUARIO */}
+                    <Route
+                        path="/user"
+                        element={
+                            <ProtectedRoute requireRole="USUARIO">
+                                <UserDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                {/* Cualquier ruta desconocida -> login */}
-                <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
+                    {/* Cualquier ruta desconocida -> login */}
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                </Routes>
+            </AuthProvider>
         </BrowserRouter>
     );
 }
