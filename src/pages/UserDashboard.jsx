@@ -1,44 +1,100 @@
-import UserLayout from '../layouts/UserLayout';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import UserLayout from '../layouts/UserLayout.jsx';
+import Calendario from '../components/Calendario.jsx';
+import MisReservas from '../components/MisReservas.jsx';
+import ModalConfirmacionReserva from '../components/ModalConfirmacionReserva.jsx';
 
 export default function UserDashboard() {
-    const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
+    const [vista, setVista] = useState('reservar'); // 'reservar' | 'mis-reservas'
+    const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
+    const [canchaSeleccionada, setCanchaSeleccionada] = useState(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    const handleLogout = () => {
-        logout();
-        navigate('/login', { replace: true });
+    const handleSeleccionarTurno = (turno, cancha) => {
+        setTurnoSeleccionado(turno);
+        setCanchaSeleccionada(cancha);
+    };
+
+    const handleCerrarModal = () => {
+        setTurnoSeleccionado(null);
+        setCanchaSeleccionada(null);
+    };
+
+    const handleReservaCreada = (data) => {
+        handleCerrarModal();
+        // Refrescar la lista de reservas y forzar recarga del calendario
+        setRefreshKey((k) => k + 1);
+        setVista('mis-reservas');
     };
 
     return (
         <UserLayout>
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h2 className="text-2xl font-bold text-blanco">Vista de Cliente</h2>
-                    {user && (
-                        <p className="text-gray-400 text-sm mt-1">
-                            {user.nombre} {user.apellido} · {user.email}
+            <div className="flex flex-col gap-6">
+                {/* Header con tabs */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-blanco">
+                            Hola, {user?.nombre ?? ''}
+                        </h2>
+                        <p className="text-gray-400 text-sm">
+                            Reservá tu cancha o consultá tus reservas activas
                         </p>
-                    )}
+                    </div>
+
+                    <div className="inline-flex bg-[#222222] rounded-lg p-1 border border-white/10">
+                        <TabButton
+                            active={vista === 'reservar'}
+                            onClick={() => setVista('reservar')}
+                            icon="📅"
+                            label="Reservar"
+                        />
+                        <TabButton
+                            active={vista === 'mis-reservas'}
+                            onClick={() => setVista('mis-reservas')}
+                            icon="📋"
+                            label="Mis reservas"
+                        />
+                    </div>
                 </div>
-                <button
-                    onClick={handleLogout}
-                    className="text-xs bg-red-500/20 text-red-300 hover:bg-red-500/30 px-3 py-1.5 rounded-lg border border-red-500/30 transition font-medium"
-                >
-                    Cerrar Sesión
-                </button>
+
+                {/* Vista según tab */}
+                {vista === 'reservar' ? (
+                    <div>
+                        <Calendario
+                            onSeleccionarTurno={handleSeleccionarTurno}
+                            refreshKey={refreshKey}
+                        />
+                    </div>
+                ) : (
+                    <MisReservas refreshKey={refreshKey} />
+                )}
             </div>
 
-            <div className="border-2 border-dashed border-verde-claro/30 rounded-xl p-8 text-center text-gray-300">
-                <h3 className="text-lg font-semibold text-blanco mb-2">
-                    ¡Bienvenido a la sección de reservas!
-                </h3>
-                <p>
-                    El flujo de reservas y calendario para clientes pertenece a otra rama del proyecto.
-                    Esta sección queda autenticada contra el backend (JWT / bcrypt) y lista para integrarse.
-                </p>
-            </div>
+            <ModalConfirmacionReserva
+                open={!!turnoSeleccionado}
+                turno={turnoSeleccionado}
+                cancha={canchaSeleccionada}
+                onClose={handleCerrarModal}
+                onSuccess={handleReservaCreada}
+            />
         </UserLayout>
+    );
+}
+
+function TabButton({ active, onClick, icon, label }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition ${
+                active
+                    ? 'bg-verde-principal text-blanco shadow-sm'
+                    : 'text-gray-400 hover:text-blanco hover:bg-white/5'
+            }`}
+        >
+            <span>{icon}</span>
+            <span>{label}</span>
+        </button>
     );
 }

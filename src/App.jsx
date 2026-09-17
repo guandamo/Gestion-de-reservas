@@ -6,12 +6,15 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 import Login from './pages/Login';
 import AdminLayout from './layouts/AdminLayout';
-import UserDashboard from './pages/UserDashboard';
 
 import Calendario from './components/Calendario';
 import Reportes from './pages/Reportes';
 import CanchasYPrecios from './pages/CanchasYPrecios';
 import Usuarios from './pages/Usuarios';
+import ReservasAdmin from './pages/ReservasAdmin';
+import UserLayout from './layouts/UserLayout.jsx';
+import ReservarView from './pages/ReservarView.jsx';
+import MisReservasView from './pages/MisReservasView.jsx';
 
 export default function App() {
     return (
@@ -31,6 +34,7 @@ export default function App() {
                         }
                     >
                         <Route index element={<Calendario />} />
+                        <Route path="reservas" element={<ReservasAdmin />} />
                         <Route path="reportes" element={<Reportes />} />
                         <Route path="canchas" element={<CanchasYPrecios />} />
                         <Route path="usuarios" element={<Usuarios />} />
@@ -41,10 +45,14 @@ export default function App() {
                         path="/user"
                         element={
                             <ProtectedRoute requireRole="USUARIO">
-                                <UserDashboard />
+                                <UserLayout />
                             </ProtectedRoute>
                         }
-                    />
+                    >
+                        <Route index element={<Navigate to="reservar" replace />} />
+                        <Route path="reservar" element={<ReservarView />} />
+                        <Route path="mis-reservas" element={<MisReservasView />} />
+                    </Route>
 
                     {/* Cualquier ruta desconocida -> login */}
                     <Route path="*" element={<Navigate to="/login" replace />} />

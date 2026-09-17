@@ -11,6 +11,8 @@ import courtRoutes from "./routes/court.routes.js";
 import courtTypeRoutes from "./routes/courtType.routes.js";
 import reportRoutes from "./routes/report.routes.js";
 import auditRoutes from "./routes/audit.routes.js";
+import reservaRoutes from "./routes/reserva.routes.js";
+import turnoRoutes from "./routes/turno.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -51,6 +53,8 @@ app.use("/api/courts", courtRoutes);
 app.use("/api/court-types", courtTypeRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("/api/reservations", reservaRoutes);
+app.use("/api/turnos", turnoRoutes);
 
 // --- 404 + errores ---
 app.use(notFoundHandler);

@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma.js";
+import { HttpError } from "../../utils/httpError.js";
 import { generarTurnosParaCancha } from "./generadorTurnos.js";
 
 export async function editarCancha(idCancha, {
@@ -12,7 +13,7 @@ export async function editarCancha(idCancha, {
 
     const id = Number(idCancha);
     if (!Number.isInteger(id) || id <= 0) {
-        throw new Error("El ID de la cancha no es válido");
+        throw new HttpError(400, "El ID de la cancha no es válido");
     }
 
     const canchaActual = await prisma.cancha.findUnique({
@@ -22,20 +23,20 @@ export async function editarCancha(idCancha, {
     });
 
     if (!canchaActual) {
-        throw new Error("La cancha no existe");
+        throw new HttpError(404, "La cancha no existe");
     }
 
 
 
     if ( nombre === undefined && horaInicio === undefined && horaFin === undefined && precioTurno === undefined && idTipoCancha === undefined && activa === undefined) {
-        throw new Error("No se pasaron campoos para modificar");
+        throw new HttpError(400, "No se pasaron campos para modificar");
     }
 
     const datos = {};  //aca se guardan los daros a modificar
 
     if (nombre !== undefined) {
         if (typeof nombre !== "string" || nombre.trim() === "") {
-            throw new Error("El nombre no cumple con el formato");
+            throw new HttpError(400, "El nombre no cumple con el formato");
         }
         datos.nombre = nombre.trim();
     }
@@ -48,7 +49,7 @@ export async function editarCancha(idCancha, {
         const idTipo = Number(idTipoCancha);
 
         if (!Number.isInteger(idTipo) || idTipo <= 0) {
-            throw new Error("El tipo de cancha no es válido");
+            throw new HttpError(400, "El tipo de cancha no es válido");
         }
 
         const tipoCancha = await prisma.tipoCancha.findUnique({
@@ -57,7 +58,7 @@ export async function editarCancha(idCancha, {
             },
         });
         if (!tipoCancha) {
-            throw new Error("El tipo de cancha no existe");
+            throw new HttpError(404, "El tipo de cancha no existe");
         }
 
         datos.idTipoCancha = idTipo;
@@ -70,7 +71,7 @@ export async function editarCancha(idCancha, {
         precioNuevo = Number(precioTurno);
 
         if (!Number.isFinite(precioNuevo) || precioNuevo <= 0) {
-            throw new Error("El precio no es válido");
+            throw new HttpError(400, "El precio no es válido");
         }
         datos.precioTurno = precioNuevo;
     }
@@ -78,14 +79,14 @@ export async function editarCancha(idCancha, {
     if (activa !== undefined) {
 
         if (typeof activa !== "boolean") {
-            throw new Error("El estado de la cancha no es válido");
+            throw new HttpError(400, "El estado de la cancha no es válido");
         }
         datos.activa = activa;
     }
 
 // ¿que pasa con los turnos reservados si se cambia el horario de la cancha? los turnos quedan reservados quedan, y los restantes se crean nuevamente en
 // horario valido. PROBLEMA: pueden quedar huecos de tiempo sin turnos si cambian los minutos
-    
+
 
     const cambiaHorario = horaInicio !== undefined || horaFin !== undefined;
 
@@ -104,17 +105,17 @@ export async function editarCancha(idCancha, {
     if (
       !esHoraValida(nuevaHoraInicio) || !esHoraValida(nuevaHoraFin)
     ) {
-      throw new Error("El formato del horario no es válido");
+      throw new HttpError(400, "El formato del horario no es válido");
     }
 
     if (nuevaHoraInicio >= nuevaHoraFin) {
-      throw new Error("La hora de inicio debe ser menor a la hora de fin");
+      throw new HttpError(400, "La hora de inicio debe ser menor a la hora de fin");
     }
 
     const minutosInicio = nuevaHoraInicio.split(":")[1];
     const minutosFin = nuevaHoraFin.split(":")[1];
     if (minutosInicio !== minutosFin) {
-      throw new Error("La hora de inicio y la hora de fin deben tener los mismos minutos");
+      throw new HttpError(400, "La hora de inicio y la hora de fin deben tener los mismos minutos");
     }
 
     // Buscar turnos reservados que todavía deben respetarse
@@ -124,20 +125,38 @@ export async function editarCancha(idCancha, {
             estado: "RESERVADO",
             fecha: { gte: obtenerFechaHoy(),},
         },
+        orderBy: [{ fecha: "asc" }, { horaInicio: "asc" }],
     });
 
     const inicioNuevo = horaAMinutos(nuevaHoraInicio);
     const finNuevo = horaAMinutos(nuevaHoraFin);
 
     // Ningún turno reservado puede quedar fuera del nuevo horario de funcionamiento
+    const conflictivos = [];
     for (const turno of turnosReservados) {
 
         const inicioReserva = turno.horaInicio.getUTCHours() * 60 + turno.horaInicio.getUTCMinutes();
         const finReserva = inicioReserva + 60;
 
         if ( inicioReserva < inicioNuevo || finReserva > finNuevo) {
-            throw new Error("No se puede modificar el horario porque existe un turno reservado fuera del nuevo horario");
+            conflictivos.push({
+                fecha: turno.fecha.toISOString().slice(0, 10),
+                horaInicio: convertirHoraAString(turno.horaInicio),
+            });
         }
+    }
+
+    if (conflictivos.length > 0) {
+      const lista = conflictivos
+        .slice(0, 5)
+        .map((c) => `${c.fecha} ${c.horaInicio}`)
+        .join(", ");
+      const resto = conflictivos.length > 5 ? ` y ${conflictivos.length - 5} más` : "";
+      throw new HttpError(
+        409,
+        `No se puede modificar el horario: hay ${conflictivos.length} turno(s) reservado(s) que quedan fuera del nuevo rango (${lista}${resto}). Cancelá esas reservas primero.`,
+        { turnosConflictivos: conflictivos },
+      );
     }
 
     datos.horaInicio = crearHora(nuevaHoraInicio);
@@ -165,7 +184,7 @@ export async function editarCancha(idCancha, {
                 fecha: {gte: hoy, },
             },
         });
-    
+
     if (canchaActualizada.activa) {
       await generarTurnosParaCancha(canchaActualizada);
     }
