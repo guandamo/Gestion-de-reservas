@@ -86,6 +86,13 @@ export async function crearPreferenciaPago({ idReserva, idUsuario } = {}) {
     throw new HttpError(409, "El pago ya no está disponible para iniciar.");
   }
 
+const notificationUrl = process.env.MP_NOTIFICATION_URL;
+
+if (!notificationUrl) {
+  throw new HttpError(500, "Falta configurar MP_NOTIFICATION_URL.");
+}
+
+
   // Esta llamada crea el enlace de checkout; no acredita un pago.
   let preferencia;
 
@@ -102,6 +109,7 @@ export async function crearPreferenciaPago({ idReserva, idUsuario } = {}) {
           },
         ],
         external_reference: String(pago.id),
+        notification_url: notificationUrl,
       },
     });
   } catch {
