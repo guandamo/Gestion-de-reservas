@@ -11,12 +11,53 @@ export async function createPaymentPreference(req, res) {
 }
 
 export async function receivePaymentWebhook(req, res) {
-  // El ID de la URL es el que participa en la firma.
-  const resultado = await procesarWebhookPago({
-    idPagoMP: req.query["data.id"],
-    firma: req.get("x-signature"),
-    requestId: req.get("x-request-id"),
-  });
+  const idPagoMP = req.query["data.id"];
+  const firma = req.get("x-signature");
+  const requestId = req.get("x-request-id");
 
-  return res.status(200).json(resultado);
+  // Registrar presencia y formato, sin exponer firmas ni secretos.
+  const diagnostico = {
+    idPagoMP:
+      typeof idPagoMP === "string" && /^\d+$/.test(idPagoMP)
+        ? idPagoMP
+        : null,
+    tipoId: typeof idPagoMP,
+    tieneIdQuery: idPagoMP !== undefined,
+    tieneIdBody: req.body?.data?.id !== undefined,
+    coincideId:
+      idPagoMP !== undefined &&
+      req.body?.data?.id !== undefined &&
+      String(idPagoMP) === String(req.body.data.id),
+    tieneFirma: Boolean(firma),
+    tieneRequestId: Boolean(requestId),
+    tieneTs: Boolean(
+      firma?.split(",").some((parte) => parte.trim().startsWith("ts=")),
+    ),
+    tieneV1: Boolean(
+      firma?.split(",").some((parte) => parte.trim().startsWith("v1=")),
+    ),
+  };
+
+  try {
+    const resultado = await procesarWebhookPago({
+      idPagoMP,
+      firma,
+      requestId,
+    });
+
+    console.info("[MP webhook] Procesado", {
+      idPagoMP: diagnostico.idPagoMP,
+      resultado: resultado.resultado,
+    });
+
+    return res.status(200).json(resultado);
+  } catch (err) {
+    console.error("[MP webhook] Falló", {
+      ...diagnostico,
+      status: err.status ?? 500,
+      mensaje: err.status === 401 ? err.message : "Error de procesamiento",
+    });
+
+    throw err;
+  }
 }
