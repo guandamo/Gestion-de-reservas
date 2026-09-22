@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef  } from 'react';
 import { api, ApiError } from '../api/client.js';
 
 /**
@@ -14,41 +14,91 @@ import { api, ApiError } from '../api/client.js';
 export default function ModalConfirmacionReserva({ turno, cancha, open, onClose, onSuccess }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [reservaCreada, setReservaCreada] = useState(null);
+    const procesando = useRef(false);
 
     // Limpiar estado al abrir/cerrar
     useEffect(() => {
-        if (open) {
-            setLoading(false);
-            setError('');
-        }
-    }, [open]);
+    if (open) {
+        setError('');
+        setReservaCreada(null);
+    }
+}, [open, turno?.id]);
 
     if (!open || !turno || !cancha) return null;
 
-    const handleReservar = async () => {
-        setError('');
-        try {
-            setLoading(true);
-            const data = await api.post('/reservations', { idTurno: turno.id });
-            onSuccess?.(data);
-        } catch (err) {
-            if (err instanceof ApiError) {
-                if (err.status === 409) {
-                    setError('Ese turno ya fue reservado por otro usuario.');
-                } else if (err.status === 400) {
-                    setError(err.message || 'No se puede reservar este turno.');
-                } else if (err.status === 401) {
-                    setError('Tu sesión expiró. Volvé a iniciar sesión.');
-                } else {
-                    setError(err.message || 'Error inesperado.');
-                }
-            } else {
-                setError(err?.message || 'Error de red.');
-            }
-        } finally {
+    const handleCerrar = () => {
+    if (procesando.current) return;
+
+    if (reservaCreada) {
+        // La reserva existe y sigue pendiente de pago.
+        onSuccess?.(reservaCreada);
+    } else {
+        onClose();
+    }
+};
+
+const handleReservar = async () => {
+    if (procesando.current) return;
+
+    procesando.current = true;
+    setLoading(true);
+    setError('');
+
+    let reserva = reservaCreada;
+    let redirigiendo = false;
+
+    try {
+        // Si ya se creó, reintentar únicamente el enlace de pago.
+        if (!reserva) {
+            reserva = await api.post('/reservations', {
+                idTurno: turno.id,
+            });
+
+            setReservaCreada(reserva);
+        }
+
+        const pago = await api.post('/payments/preference', {
+            idReserva: reserva.reservationId,
+        });
+
+        // En esta etapa usamos únicamente el enlace de pruebas.
+        const enlace = pago.sandboxInitPoint;
+
+        if (!enlace) {
+            throw new Error(
+                'Mercado Pago no devolvió el enlace de pruebas.'
+            );
+        }
+
+        window.location.assign(enlace);
+        redirigiendo = true;
+    } catch (err) {
+        let mensaje = err?.message || 'Error de red. Intentá nuevamente.';
+
+        if (err instanceof ApiError && err.status === 401) {
+            mensaje = 'Tu sesión expiró. Volvé a iniciar sesión.';
+        } else if (
+            !reserva &&
+            err instanceof ApiError &&
+            err.status === 409
+        ) {
+            mensaje = 'Ese turno ya no está disponible.';
+        }
+
+        setError(
+            reserva
+                ? `Tu reserva #${reserva.reservationId} quedó pendiente de pago. ${mensaje}`
+                : mensaje
+        );
+    } finally {
+        // Mantener bloqueado el modal mientras sale hacia Mercado Pago.
+        if (!redirigiendo) {
+            procesando.current = false;
             setLoading(false);
         }
-    };
+    }
+};
 
     const formatearFecha = (fecha) => {
         if (!fecha) return '—';
@@ -59,7 +109,7 @@ export default function ModalConfirmacionReserva({ turno, cancha, open, onClose,
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fadeIn"
-            onClick={onClose}
+            onClick={handleCerrar}
         >
             <div
                 className="bg-[#222222] rounded-2xl shadow-2xl max-w-md w-full border border-white/10"
@@ -69,7 +119,7 @@ export default function ModalConfirmacionReserva({ turno, cancha, open, onClose,
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                     <h3 className="text-blanco text-lg font-bold">Confirmar reserva</h3>
                     <button
-                        onClick={onClose}
+                        onClick={handleCerrar}
                         className="text-gray-400 hover:text-blanco transition"
                         aria-label="Cerrar"
                         disabled={loading}
@@ -111,18 +161,22 @@ export default function ModalConfirmacionReserva({ turno, cancha, open, onClose,
                 {/* Footer */}
                 <div className="flex gap-3 px-6 pb-6">
                     <button
-                        onClick={onClose}
+                        onClick={handleCerrar}
                         disabled={loading}
                         className="flex-1 bg-white/10 hover:bg-white/20 text-blanco font-medium py-3 rounded-lg transition disabled:opacity-60"
                     >
-                        Cancelar
+                        {reservaCreada ? 'Ver mis reservas' : 'Cancelar'}
                     </button>
                     <button
                         onClick={handleReservar}
                         disabled={loading}
                         className="flex-1 bg-verde-principal hover:bg-verde-principal/90 text-blanco font-bold py-3 rounded-lg transition disabled:opacity-60"
                     >
-                        {loading ? 'Reservando...' : 'Reservar y pagar'}
+                        {loading
+                            ? 'Preparando pago...' : reservaCreada
+                                ? 'Reintentar pago'
+                                : 'Reservar y pagar'
+                        }
                     </button>
                 </div>
             </div>
