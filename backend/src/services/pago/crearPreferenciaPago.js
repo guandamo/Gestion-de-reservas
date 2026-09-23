@@ -109,7 +109,7 @@ if (!notificationUrl) {
           },
         ],
         external_reference: String(pago.id),
-        notification_url: notificationUrl,
+        //notification_url: notificationUrl,
       },
     });
   } catch {
