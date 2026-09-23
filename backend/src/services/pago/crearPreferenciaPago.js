@@ -130,7 +130,7 @@ if (!notificationUrl) {
             failure: returnUrl,
           },
           auto_return: "approved",
-        //notification_url: notificationUrl,
+          notification_url: notificationUrl,
       },
     });
   } catch {

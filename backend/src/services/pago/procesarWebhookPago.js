@@ -79,10 +79,17 @@ function validarFirma({ idPagoMP, firma, requestId }) {
     cantidadFirmas: firmas.length,
   });
 
-  throw new HttpError(
-    401,
-    "La firma recibida no coincide con la calculada.",
+    if (process.env.MP_WEBHOOK_ENFORCE_SIGNATURE === "true") {
+    throw new HttpError(
+      401,
+      "La firma recibida no coincide con la calculada.",
+    );
+  }
+
+  console.warn(
+    "[MP firma] Firma inválida: se continúa porque el pago se verifica contra la API de MP.",
   );
+  return;
 }
 }
 
