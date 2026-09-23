@@ -1,106 +1,20 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { Payment } from "mercadopago";
 import { Prisma } from "@prisma/client";
 import { mercadoPago } from "../../config/mercadopago.js";
 import { prisma } from "../../config/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
 import { createAuditLog } from "../audit/createAuditLog.js";
-import * as mpSDK from "mercadopago";
 
 const pagosMP = new Payment(mercadoPago);
 
-function validarFirma({ idPagoMP, firma, requestId }) {
-  const secret = process.env.MP_WEBHOOK_SECRET;
-
-  if (!secret) {
-    throw new HttpError(500, "Falta configurar MP_WEBHOOK_SECRET.");
+// La autenticidad de la notificación no se verifica con la firma HMAC:
+// se consulta el pago directamente a la API de Mercado Pago con nuestro
+// access token y solo se usan los datos devueltos por la API.
+export async function procesarWebhookPago({ idPagoMP }) {
+  if (typeof idPagoMP !== "string" || !/^\d+$/.test(idPagoMP)) {
+    throw new HttpError(400, "ID de pago inválido.");
   }
 
-  if (
-    typeof idPagoMP !== "string" ||
-    !/^\d+$/.test(idPagoMP) ||
-    typeof firma !== "string" ||
-    typeof requestId !== "string" ||
-    !requestId
-  ) {
-    throw new HttpError(401, "Notificación sin firma válida.");
-  }
-
-  const partes = firma.split(",").map((parte) => parte.trim());
-  const ts = partes.find((parte) => parte.startsWith("ts="))?.slice(3);
-  const firmas = partes
-    .filter((parte) => parte.startsWith("v1="))
-    .map((parte) => parte.slice(3))
-    .filter((valor) => /^[a-f0-9]{64}$/i.test(valor));
-
-  if (!ts || !/^\d+$/.test(ts) || firmas.length === 0) {
-  console.error("[MP firma] Formato incorrecto", {
-    tsNumerico: Boolean(ts && /^\d+$/.test(ts)),
-    cantidadFirmasValidas: firmas.length,
-  });
-
-  throw new HttpError(401, "Formato de firma incorrecto.");
-}
-  const mensaje =
-    `id:${idPagoMP};request-id:${requestId};ts:${ts};`;
-
-  const esperada = createHmac("sha256", secret)
-    .update(mensaje)
-    .digest();
-
-  const valida = firmas.some((valor) =>
-    timingSafeEqual(Buffer.from(valor, "hex"), esperada),
-  );
-
-  if (!valida) {
-  let resultadoSDK = "validador_no_disponible";
-
-  if (typeof mpSDK.WebhookSignatureValidator?.validate === "function") {
-    try {
-      mpSDK.WebhookSignatureValidator.validate({
-        xSignature: firma,
-        xRequestId: requestId,
-        dataId: idPagoMP,
-        secret,
-      });
-
-      resultadoSDK = "acepta";
-    } catch (error) {
-      resultadoSDK =
-        "rechaza: " + (error.reason ?? error.name ?? "error");
-    }
-  }
-
-  console.error("[MP firma] Comparacion", {
-    idPagoMP,
-    mensajeFirmado: mensaje,
-    resultadoSDK,
-    cantidadTs: partes.filter((parte) => parte.startsWith("ts=")).length,
-    cantidadFirmas: firmas.length,
-  });
-
-    if (process.env.MP_WEBHOOK_ENFORCE_SIGNATURE === "true") {
-    throw new HttpError(
-      401,
-      "La firma recibida no coincide con la calculada.",
-    );
-  }
-
-  console.warn(
-    "[MP firma] Firma inválida: se continúa porque el pago se verifica contra la API de MP.",
-  );
-  return;
-}
-}
-
-export async function procesarWebhookPago({
-  idPagoMP,
-  firma,
-  requestId,
-}) {
-  validarFirma({ idPagoMP, firma, requestId });
-
-  // Consultar la API: no confiar en un estado enviado en el body.
   let pagoMP;
 
   try {
