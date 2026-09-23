@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { crearPreferenciaPago } from "../services/pago/crearPreferenciaPago.js";
 import { procesarWebhookPago } from "../services/pago/procesarWebhookPago.js";
 
@@ -52,6 +53,21 @@ export async function receivePaymentWebhook(req, res) {
 
     return res.status(200).json(resultado);
   } catch (err) {
+    // Diagnóstico temporal para reproducir un rechazo de firma fuera de Render.
+    // La huella permite comparar claves sin registrar la clave secreta.
+    if (err.status === 401 && diagnostico.idPagoMP) {
+      console.error("[MP webhook] Captura", JSON.stringify({
+        fechaCaptura: new Date().toISOString(),
+        idPagoMP: diagnostico.idPagoMP,
+        xRequestId: requestId,
+        xSignature: firma,
+        huellaSecreto: createHash("sha256")
+          .update(process.env.MP_WEBHOOK_SECRET ?? "")
+          .digest("hex")
+          .slice(0, 16),
+      }));
+    }
+
     console.error("[MP webhook] Falló", {
       ...diagnostico,
       status: err.status ?? 500,
