@@ -58,6 +58,21 @@ export async function crearPreferenciaPago({ idReserva, idUsuario } = {}) {
     );
   }
 
+
+  const returnUrl = process.env.MP_RETURN_URL;
+
+  try {
+  const url = new URL(returnUrl);
+  if (url.protocol !== "https:") throw new Error("Se requiere HTTPS");
+  } catch {
+  throw new HttpError(
+    500,
+    "Configurá MP_RETURN_URL con una URL HTTPS válida.",
+  );
+  }
+
+
+
   // Conservar el monto si el pago ya existe.
   // Para un pago nuevo, tomar el precio del turno desde la base.
   const monto = reserva.pago?.monto ?? reserva.turno.precio;
@@ -109,6 +124,12 @@ if (!notificationUrl) {
           },
         ],
         external_reference: String(pago.id),
+          back_urls: {
+            success: returnUrl,
+            pending: returnUrl,
+            failure: returnUrl,
+          },
+          auto_return: "approved",
         //notification_url: notificationUrl,
       },
     });
