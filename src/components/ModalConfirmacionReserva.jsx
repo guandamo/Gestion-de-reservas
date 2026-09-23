@@ -62,14 +62,12 @@ const handleReservar = async () => {
             idReserva: reserva.reservationId,
         });
 
-        // En esta etapa usamos únicamente el enlace de pruebas.
-        const enlace = pago.sandboxInitPoint;
-
+        const enlace = pago.initPoint;
+        
         if (!enlace) {
-            throw new Error(
-                'Mercado Pago no devolvió el enlace de pruebas.'
-            );
+            throw new Error('Mercado Pago no devolvió el enlace de pago.');
         }
+        
 
         window.location.assign(enlace);
         redirigiendo = true;
