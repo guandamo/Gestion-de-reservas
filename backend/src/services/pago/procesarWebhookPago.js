@@ -5,6 +5,7 @@ import { mercadoPago } from "../../config/mercadopago.js";
 import { prisma } from "../../config/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
 import { createAuditLog } from "../audit/createAuditLog.js";
+import * as mpSDK from "mercadopago";
 
 const pagosMP = new Payment(mercadoPago);
 
@@ -52,13 +53,36 @@ function validarFirma({ idPagoMP, firma, requestId }) {
   );
 
   if (!valida) {
-  console.error("[MP firma] HMAC no coincide", {
+  let resultadoSDK = "validador_no_disponible";
+
+  if (typeof mpSDK.WebhookSignatureValidator?.validate === "function") {
+    try {
+      mpSDK.WebhookSignatureValidator.validate({
+        xSignature: firma,
+        xRequestId: requestId,
+        dataId: idPagoMP,
+        secret,
+      });
+
+      resultadoSDK = "acepta";
+    } catch (error) {
+      resultadoSDK =
+        "rechaza: " + (error.reason ?? error.name ?? "error");
+    }
+  }
+
+  console.error("[MP firma] Comparacion", {
     idPagoMP,
-    secretoConEspaciosEnExtremos: secret !== secret.trim(),
-    requestIdConEspaciosEnExtremos: requestId !== requestId.trim(),
+    mensajeFirmado: mensaje,
+    resultadoSDK,
+    cantidadTs: partes.filter((parte) => parte.startsWith("ts=")).length,
+    cantidadFirmas: firmas.length,
   });
 
-  throw new HttpError(401, "La firma recibida no coincide con la calculada.");
+  throw new HttpError(
+    401,
+    "La firma recibida no coincide con la calculada.",
+  );
 }
 }
 
