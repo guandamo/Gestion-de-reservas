@@ -33,9 +33,13 @@ function validarFirma({ idPagoMP, firma, requestId }) {
     .filter((valor) => /^[a-f0-9]{64}$/i.test(valor));
 
   if (!ts || !/^\d+$/.test(ts) || firmas.length === 0) {
-    throw new HttpError(401, "Firma de notificación inválida.");
-  }
+  console.error("[MP firma] Formato incorrecto", {
+    tsNumerico: Boolean(ts && /^\d+$/.test(ts)),
+    cantidadFirmasValidas: firmas.length,
+  });
 
+  throw new HttpError(401, "Formato de firma incorrecto.");
+}
   const mensaje =
     `id:${idPagoMP};request-id:${requestId};ts:${ts};`;
 
@@ -48,8 +52,14 @@ function validarFirma({ idPagoMP, firma, requestId }) {
   );
 
   if (!valida) {
-    throw new HttpError(401, "Firma de notificación inválida.");
-  }
+  console.error("[MP firma] HMAC no coincide", {
+    idPagoMP,
+    secretoConEspaciosEnExtremos: secret !== secret.trim(),
+    requestIdConEspaciosEnExtremos: requestId !== requestId.trim(),
+  });
+
+  throw new HttpError(401, "La firma recibida no coincide con la calculada.");
+}
 }
 
 export async function procesarWebhookPago({
