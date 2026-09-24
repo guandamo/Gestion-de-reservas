@@ -7,6 +7,7 @@ que se leen con métodos UTC y luego se convierte el horario argentino a UTC.
 const OFFSET_ARGENTINA_HORAS = 3;
 
 */
+const OFFSET_ARGENTINA_HORAS = 3;
 function horaYMinutos(t) {
   if (typeof t === "string") {
     const [hh, mm] = t.split(":").map(Number);
