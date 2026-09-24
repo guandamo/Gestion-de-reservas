@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
 import { maxReservaDate } from "../../utils/dates.js";
 import { createAuditLog } from "../audit/createAuditLog.js";
+import { inicioTurno } from "../../utils/turnoHorario.js";
 
 /**
  * Crea una pre-reserva para el usuario autenticado.
@@ -16,14 +17,16 @@ import { createAuditLog } from "../audit/createAuditLog.js";
  */
 export async function crearReserva({ idUsuario, idTurno } = {}) {
   if (!idUsuario) throw new HttpError(401, "Usuario no autenticado.");
-  if (!idTurno || Number.isNaN(Number(idTurno))) {
-    throw new HttpError(400, "Falta idTurno.");
+  
+  const turnoId = Number(idTurno);
+  if (!Number.isSafeInteger(turnoId) || turnoId <= 0) {
+    throw new HttpError(400, "El ID de turno no es válido.");
   }
 
   const resultado = await prisma.$transaction(async (tx) => {
     // 1) Re-leer el turno con la cancha DENTRO de la transacción
     const turno = await tx.turno.findUnique({
-      where: { id: Number(idTurno) },
+      where: { id: turnoId },
       include: { cancha: { include: { tipoCancha: true } } },
     });
 
@@ -43,15 +46,20 @@ export async function crearReserva({ idUsuario, idTurno } = {}) {
       );
     }
 
-    // 2) No permitir reservas en fechas pasadas (o turnos del día ya vencidos)
-    const ahora = new Date();
-    const fechaTurno = new Date(turno.fecha);
-    // horaInicio viene como "HH:MM:SS" o Date
+
+    // 2) No permitir reservar turnos que ya comenzaron.
+    const fechaTurno = inicioTurno(turno);
     const horaStr = horaAString(turno.horaInicio);
-    const [hh, mm] = horaStr.split(":").map(Number);
-    fechaTurno.setUTCHours(hh, mm, 0, 0);
-    if (fechaTurno.getTime() <= ahora.getTime()) {
-      throw new HttpError(400, "No se puede reservar un turno que ya pasó.");
+
+    if (!Number.isFinite(fechaTurno.getTime())) {
+      throw new HttpError(400, "El turno no tiene un horario válido.");
+    }
+
+    if (fechaTurno.getTime() <= Date.now()) {
+      throw new HttpError(
+        400,
+        "No se puede reservar un turno que ya comenzó o pasó.",
+      );
     }
 
     // 3) El turno debe estar DISPONIBLE
