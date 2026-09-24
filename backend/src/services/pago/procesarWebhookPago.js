@@ -15,6 +15,12 @@ export async function procesarWebhookPago({ idPagoMP }) {
     throw new HttpError(400, "ID de pago inválido.");
   }
 
+  const vendedorEsperado = process.env.MP_COLLECTOR_ID?.trim();
+
+if (!vendedorEsperado || !/^[1-9]\d*$/.test(vendedorEsperado)) {
+  throw new HttpError(500, "Falta configurar un MP_COLLECTOR_ID válido.");
+}
+
   let pagoMP;
 
   try {
@@ -28,6 +34,14 @@ export async function procesarWebhookPago({ idPagoMP }) {
   if (String(pagoMP.id) !== idPagoMP) {
     throw new HttpError(409, "El ID del pago no coincide.");
   }
+
+  // El vendedor proviene de la API, no del webhook.
+if (String(pagoMP.collector_id) !== vendedorEsperado) {
+  throw new HttpError(
+    409,
+    "El pago no pertenece al vendedor configurado.",
+  );
+}
 
   // Esta implementación confirma pagos aprobados.
   // No revierte pagos por reembolsos o contracargos.

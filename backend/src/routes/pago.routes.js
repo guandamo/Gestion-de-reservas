@@ -5,12 +5,14 @@ import {
 } from "../controllers/pago.controller.js";
 import { authenticate } from "../middlewares/authenticate.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { limitarWebhookPago } from "../middlewares/limitarWebhookPago.js";
 
 const router = Router();
 
-// Mercado Pago se autentica mediante la firma de la notificación.
+// Aviso público; el servicio verifica el pago consultando la API.
 router.post(
   "/webhook",
+  limitarWebhookPago,
   asyncHandler(receivePaymentWebhook),
 );
 
