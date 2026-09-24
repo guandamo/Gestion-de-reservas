@@ -70,7 +70,25 @@ export async function crearReserva({ idUsuario, idTurno } = {}) {
       throw new HttpError(409, "El turno ya está reservado.");
     }
 
-    // 5) Crear la Reserva en estado PENDIENTE
+    // 5) Tomar el turno solamente si todavía está disponible.
+    const resultadoTurno = await tx.turno.updateMany({
+      where: {
+        id: turno.id,
+        estado: "DISPONIBLE",
+      },
+      data: {
+        estado: "RESERVADO",
+      },
+    });
+
+    if (resultadoTurno.count !== 1) {
+      throw new HttpError(
+        409,
+        "Otro usuario acaba de reservar este turno. Elegí otro horario.",
+      );
+    }
+
+    // 6) Crear la reserva después de haber tomado el turno.
     const reserva = await tx.reserva.create({
       data: {
         idUsuario,
@@ -79,19 +97,7 @@ export async function crearReserva({ idUsuario, idTurno } = {}) {
       },
     });
 
-    // 6) Marcar el Turno como RESERVADO
-    await tx.turno.update({
-      where: { id: turno.id },
-      data: { estado: "RESERVADO" },
-    });
-
-    // 7) Auditoría nivel 1: registrar modificador
-    await tx.reserva.update({
-      where: { id: reserva.id },
-      data: { /* placeholder si se agrega campo modificador en el futuro */ },
-    });
-
-    // 8) AuditLog nivel 2
+    // 7) AuditLog
     await createAuditLog({
       entity: "Reserva",
       entityId: reserva.id,
