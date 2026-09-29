@@ -1,0 +1,154 @@
+import { useEffect, useState } from 'react';
+import { api } from '../api/client.js';
+import { useAuth } from '../context/AuthContext.jsx';
+
+const EMPTY_PROFILE = { nombre: '', apellido: '', email: '', telefono: '' };
+const EMPTY_PASSWORD = { contrasenaActual: '', contrasenaNueva: '', confirmarContrasena: '' };
+
+export default function Perfil() {
+    const { updateUser } = useAuth();
+    const [perfil, setPerfil] = useState(EMPTY_PROFILE);
+    const [password, setPassword] = useState(EMPTY_PASSWORD);
+    const [cargando, setCargando] = useState(true);
+    const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+    const [guardandoPassword, setGuardandoPassword] = useState(false);
+    const [errorPerfil, setErrorPerfil] = useState('');
+    const [errorPassword, setErrorPassword] = useState('');
+    const [mensajePerfil, setMensajePerfil] = useState('');
+    const [mensajePassword, setMensajePassword] = useState('');
+
+    useEffect(() => {
+        let vigente = true;
+
+        async function cargarPerfil() {
+            try {
+                const data = await api.get('/auth/me');
+                if (!vigente) return;
+                setPerfil({
+                    nombre: data.usuario.nombre ?? '',
+                    apellido: data.usuario.apellido ?? '',
+                    email: data.usuario.email ?? '',
+                    telefono: data.usuario.telefono ?? '',
+                });
+            } catch (error) {
+                if (vigente) setErrorPerfil(error.message || 'No se pudo cargar tu perfil.');
+            } finally {
+                if (vigente) setCargando(false);
+            }
+        }
+
+        cargarPerfil();
+        return () => { vigente = false; };
+    }, []);
+
+    const handlePerfilChange = (event) => {
+        const { name, value } = event.target;
+        setPerfil((actual) => ({ ...actual, [name]: value }));
+    };
+
+    const handlePasswordChange = (event) => {
+        const { name, value } = event.target;
+        setPassword((actual) => ({ ...actual, [name]: value }));
+    };
+
+    const guardarPerfil = async (event) => {
+        event.preventDefault();
+        setErrorPerfil('');
+        setMensajePerfil('');
+        setGuardandoPerfil(true);
+
+        try {
+            const data = await api.patch('/auth/me', perfil);
+            setPerfil({
+                nombre: data.usuario.nombre ?? '',
+                apellido: data.usuario.apellido ?? '',
+                email: data.usuario.email ?? '',
+                telefono: data.usuario.telefono ?? '',
+            });
+            updateUser(data.usuario);
+            setMensajePerfil('Tus datos se actualizaron correctamente.');
+        } catch (error) {
+            setErrorPerfil(error.message || 'No se pudieron actualizar tus datos.');
+        } finally {
+            setGuardandoPerfil(false);
+        }
+    };
+
+    const guardarPassword = async (event) => {
+        event.preventDefault();
+        setErrorPassword('');
+        setMensajePassword('');
+        setGuardandoPassword(true);
+
+        try {
+            const data = await api.patch('/auth/me/password', password);
+            setPassword(EMPTY_PASSWORD);
+            setMensajePassword(data.mensaje);
+        } catch (error) {
+            setErrorPassword(error.message || 'No se pudo actualizar la contraseña.');
+        } finally {
+            setGuardandoPassword(false);
+        }
+    };
+
+    if (cargando) {
+        return <p className="text-gray-400">Cargando perfil...</p>;
+    }
+
+    return (
+        <section className="max-w-3xl space-y-6">
+            <div>
+                <h2 className="text-2xl font-bold text-blanco">Mi perfil</h2>
+                <p className="mt-1 text-sm text-gray-400">Actualizá tus datos personales y tu contraseña.</p>
+            </div>
+
+            <form onSubmit={guardarPerfil} className="rounded-xl border border-white/10 bg-[#222222] p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-blanco">Datos personales</h3>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <Field label="Nombre" name="nombre" value={perfil.nombre} onChange={handlePerfilChange} required />
+                    <Field label="Apellido" name="apellido" value={perfil.apellido} onChange={handlePerfilChange} required />
+                    <Field label="Correo electrónico" name="email" type="email" value={perfil.email} onChange={handlePerfilChange} required />
+                    <Field label="Teléfono" name="telefono" type="tel" value={perfil.telefono} onChange={handlePerfilChange} placeholder="Ej.: +5492211234567" />
+                </div>
+
+                {errorPerfil && <p className="mt-4 text-sm text-red-300">{errorPerfil}</p>}
+                {mensajePerfil && <p className="mt-4 text-sm text-green-300">{mensajePerfil}</p>}
+
+                <button type="submit" disabled={guardandoPerfil} className="mt-5 rounded-lg bg-verde-principal px-4 py-2 text-sm font-semibold text-blanco transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60">
+                    {guardandoPerfil ? 'Guardando...' : 'Guardar datos'}
+                </button>
+            </form>
+
+            <form onSubmit={guardarPassword} className="rounded-xl border border-white/10 bg-[#222222] p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-blanco">Cambiar contraseña</h3>
+                <p className="mt-1 text-sm text-gray-400">La nueva contraseña debe tener al menos 8 caracteres.</p>
+                <div className="mt-5 grid gap-4">
+                    <Field label="Contraseña actual" name="contrasenaActual" type="password" value={password.contrasenaActual} onChange={handlePasswordChange} autoComplete="current-password" required />
+                    <Field label="Nueva contraseña" name="contrasenaNueva" type="password" value={password.contrasenaNueva} onChange={handlePasswordChange} autoComplete="new-password" minLength="8" required />
+                    <Field label="Repetir nueva contraseña" name="confirmarContrasena" type="password" value={password.confirmarContrasena} onChange={handlePasswordChange} autoComplete="new-password" minLength="8" required />
+                </div>
+
+                {errorPassword && <p className="mt-4 text-sm text-red-300">{errorPassword}</p>}
+                {mensajePassword && <p className="mt-4 text-sm text-green-300">{mensajePassword}</p>}
+
+                <button type="submit" disabled={guardandoPassword} className="mt-5 rounded-lg bg-verde-principal px-4 py-2 text-sm font-semibold text-blanco transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60">
+                    {guardandoPassword ? 'Actualizando...' : 'Cambiar contraseña'}
+                </button>
+            </form>
+        </section>
+    );
+}
+
+function Field({ label, name, type = 'text', ...props }) {
+    return (
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-gray-200">
+            {label}
+            <input
+                name={name}
+                type={type}
+                className="rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-blanco outline-none transition focus:border-verde-claro"
+                {...props}
+            />
+        </label>
+    );
+}

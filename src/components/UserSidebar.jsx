@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 const items = [
     { to: '/user/reservar', label: 'Reservar', icon: '📅', end: false },
     { to: '/user/mis-reservas', label: 'Mis reservas', icon: '📋', end: false },
+    { to: '/user/perfil', label: 'Mi perfil', icon: '👤', end: false },
 ];
 
 export default function UserSidebar() {

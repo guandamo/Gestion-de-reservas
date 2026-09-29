@@ -1,5 +1,10 @@
 import { loginUsuario } from "../services/usuario/loginUsuario.js";
 import { registerUsuario } from "../services/usuario/registerUsuario.js";
+import {
+  actualizarPerfil,
+  cambiarContrasena,
+  obtenerPerfil,
+} from "../services/usuario/perfilUsuario.js";
 
 /**
  * POST /api/auth/login
@@ -37,4 +42,19 @@ export async function register(req, res) {
 
   // Status 201 (recurso creado). Mismo shape que /login.
   return res.status(201).json(resultado);
+}
+
+export async function me(req, res) {
+  const usuario = await obtenerPerfil(req.user.id);
+  return res.json({ usuario });
+}
+
+export async function updateMe(req, res) {
+  const usuario = await actualizarPerfil(req.user.id, req.body ?? {});
+  return res.json({ usuario });
+}
+
+export async function updateMyPassword(req, res) {
+  await cambiarContrasena(req.user.id, req.body ?? {});
+  return res.json({ mensaje: "Contraseña actualizada correctamente." });
 }

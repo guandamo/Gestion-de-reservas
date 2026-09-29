@@ -48,6 +48,7 @@ export async function loginUsuario({
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       email: usuario.email,
+      telefono: usuario.telefono,
       rol: usuario.rol,
     },
   };

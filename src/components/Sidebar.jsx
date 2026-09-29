@@ -7,6 +7,7 @@ const items = [
     { to: '/admin/reportes', label: 'Reportes', icon: '📊' },
     { to: '/admin/canchas', label: 'Canchas y precios', icon: '⚙️' },
     { to: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
+    { to: '/admin/perfil', label: 'Mi perfil', icon: '👤' },
 ];
 
 export default function Sidebar() {
