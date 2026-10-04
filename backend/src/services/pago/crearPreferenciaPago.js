@@ -144,7 +144,6 @@ if (!notificationUrl) {
     idReserva: reserva.id,
     idPago: pago.id,
     preferenceId: preferencia.id,
-    initPoint: preferencia.init_point,
-    sandboxInitPoint: preferencia.sandbox_init_point,
+    checkoutUrl: preferencia.sandbox_init_point ?? preferencia.init_point,
   };
 }
