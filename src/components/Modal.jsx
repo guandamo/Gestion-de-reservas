@@ -201,7 +201,7 @@ export default function Modal({
                 )}
 
                 {/* Body (scrollable) */}
-                <div className="px-5 md:px-6 py-4 md:py-5 overflow-y-auto flex-1 overscroll-contain">
+                <div className="px-5 md:px-6 py-4 md:py-5 overflow-y-auto min-h-0 overscroll-contain">
                     {children}
                 </div>
 

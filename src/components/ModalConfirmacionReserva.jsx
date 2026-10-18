@@ -27,6 +27,13 @@ export default function ModalConfirmacionReserva({ turno, cancha, open, onClose,
 
     if (!open || !turno || !cancha) return null;
 
+    // Cierre "duro": X y backdrop. Siempre cierra el modal, sin importar el estado.
+    // No consulta reservaCreada ni procesando: el usuario siempre debe poder salir.
+    const handleCerrarSiempre = () => {
+        onClose();
+    };
+
+    // Cierre "inteligente": botón inferior. Si ya hay reserva, navega a mis-reservas.
     const handleCerrar = () => {
     if (procesando.current) return;
 
@@ -107,7 +114,7 @@ const handleReservar = async () => {
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fadeIn"
-            onClick={handleCerrar}
+            onClick={handleCerrarSiempre}
         >
             <div
                 className="bg-[#222222] rounded-2xl shadow-2xl max-w-md w-full border border-white/10"
@@ -117,10 +124,9 @@ const handleReservar = async () => {
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                     <h3 className="text-blanco text-lg font-bold">Confirmar reserva</h3>
                     <button
-                        onClick={handleCerrar}
+                        onClick={handleCerrarSiempre}
                         className="text-gray-400 hover:text-blanco transition"
                         aria-label="Cerrar"
-                        disabled={loading}
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
