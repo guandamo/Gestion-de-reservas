@@ -2,9 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Color de fondo base para toda la app */
+/* Reset global defensivo: garantiza que no haya margen/padding residual
+   en los contenedores raíz que pueda generar una franja visible por encima
+   del header (síntoma típico del margin: 8px por defecto del <body> en
+   algunos navegadores o cuando el preflight de Tailwind es sobrescrito).
+   El header debe comenzar en el borde superior de la ventana. */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background-color: #30302E;
+}
+
 body {
   background-color: #30302E;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 @keyframes fadeIn {
@@ -21,4 +41,38 @@ body {
 
 .animate-fadeIn {
   animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Animación de entrada lateral para el MobileDrawer */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.25s ease-out forwards;
+}
+
+/* Animación de entrada desde abajo para los Bottom Sheets (modales mobile) */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }

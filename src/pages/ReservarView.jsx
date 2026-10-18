@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Calendario from '../components/Calendario.jsx';
+import MobileCalendario from '../components/MobileCalendario.jsx';
 import ModalConfirmacionReserva from '../components/ModalConfirmacionReserva.jsx';
 
 /**
  * Vista "Reservar" del usuario.
- * Renderiza el Calendario + el Modal de confirmación.
+ * Renderiza el Calendario (desktop) o el MobileCalendario (mobile) + el Modal de confirmación.
  * Al confirmarse la reserva, redirige a /user/mis-reservas.
  */
 export default function ReservarView() {
@@ -38,7 +39,15 @@ export default function ReservarView() {
                     </p>
                 </div>
 
-                <Calendario onSeleccionarTurno={handleSeleccionarTurno} />
+                {/* Desktop */}
+                <div className="hidden lg:block">
+                    <Calendario onSeleccionarTurno={handleSeleccionarTurno} />
+                </div>
+
+                {/* Mobile */}
+                <div className="lg:hidden">
+                    <MobileCalendario onSeleccionarTurno={handleSeleccionarTurno} />
+                </div>
             </div>
 
             <ModalConfirmacionReserva

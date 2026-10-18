@@ -19,6 +19,9 @@ router.get("/", authorize("ADMIN"), asyncHandler(reserva.getAllReservations));
 router.get("/:id", asyncHandler(reserva.getReservationById));
 
 // Crear pre-reserva
-router.post("/", asyncHandler(reserva.createReservation));
+router.post("/", asyncHandler(reserva.createReservation)); 
+
+// Cancelar reserva (el service valida permisos, plazos y ownership)
+router.patch("/:id/cancel", asyncHandler(reserva.cancelReservation));
 
 export default router;

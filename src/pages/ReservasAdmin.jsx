@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
+import GlideSelect from '../components/GlideSelect.jsx';
 
 const ESTADOS = ['TODOS', 'PENDIENTE', 'CONFIRMADA', 'CANCELADA'];
 
@@ -54,17 +55,20 @@ export default function ReservasAdmin() {
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <h2 className="text-2xl font-bold text-blanco">Reservas</h2>
-                <select
+                <GlideSelect
+                    size="md"
                     value={estado}
-                    onChange={(e) => setEstado(e.target.value)}
-                    className="bg-[#222222] text-blanco text-sm border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-verde-principal"
-                >
-                    {ESTADOS.map((e) => (
-                        <option key={e} value={e}>
-                            {e === 'TODOS' ? 'Todos los estados' : LABEL_ESTADO[e] ?? e}
-                        </option>
-                    ))}
-                </select>
+                    onChange={(val) => setEstado(val)}
+                    options={ESTADOS.map((e) => ({
+                        value: e,
+                        label: e === 'TODOS' ? 'Todos los estados' : LABEL_ESTADO[e] ?? e,
+                    }))}
+                    ariaLabel="Estado"
+                    accentColor="#3ecf8e"
+                    surfaceColor="#222222"
+                    highlightColor="#3f3f46"
+                    textColor="#f5f5f5"
+                />
             </div>
 
             {/* Resumen */}

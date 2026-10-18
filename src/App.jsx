@@ -7,7 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login';
 import AdminLayout from './layouts/AdminLayout';
 
-import Calendario from './components/Calendario';
+import MobileCalendario from './components/MobileCalendario.jsx';
 import Reportes from './pages/Reportes';
 import CanchasYPrecios from './pages/CanchasYPrecios';
 import Usuarios from './pages/Usuarios';
@@ -15,6 +15,7 @@ import ReservasAdmin from './pages/ReservasAdmin';
 import UserLayout from './layouts/UserLayout.jsx';
 import ReservarView from './pages/ReservarView.jsx';
 import MisReservasView from './pages/MisReservasView.jsx';
+import Perfil from './pages/Perfil.jsx';
 
 export default function App() {
     return (
@@ -33,11 +34,12 @@ export default function App() {
                             </ProtectedRoute>
                         }
                     >
-                        <Route index element={<Calendario />} />
+                        <Route index element={<MobileCalendario showReserveCta={false} />} />
                         <Route path="reservas" element={<ReservasAdmin />} />
                         <Route path="reportes" element={<Reportes />} />
                         <Route path="canchas" element={<CanchasYPrecios />} />
                         <Route path="usuarios" element={<Usuarios />} />
+                        <Route path="perfil" element={<Perfil />} />
                     </Route>
 
                     {/* Panel Usuario: protegido, solo USUARIO */}
@@ -52,6 +54,7 @@ export default function App() {
                         <Route index element={<Navigate to="reservar" replace />} />
                         <Route path="reservar" element={<ReservarView />} />
                         <Route path="mis-reservas" element={<MisReservasView />} />
+                        <Route path="perfil" element={<Perfil />} />
                     </Route>
 
                     {/* Cualquier ruta desconocida -> login */}

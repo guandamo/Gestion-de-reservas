@@ -112,6 +112,17 @@ export async function updateUserStatus(req, res) {
   const previous = await prisma.usuario.findUnique({ where: { id } });
   if (!previous) throw new HttpError(404, "Usuario no encontrado");
 
+  // No se puede suspender a un ADMIN (un admin no debe quedar inactivo via este endpoint)
+  if (previous.rol === "ADMIN") {
+    throw new HttpError(409, "No se puede suspender a un usuario con rol ADMIN.");
+  }
+  if (id === req.user.id) {
+    throw new HttpError(409, "No podés cambiar tu propio estado.");
+  }
+
+  // Si desactivamos al usuario y solo queda este ADMIN, no podemos suspenderlo
+  // (esta validación ya quedó cubierta arriba porque sólo aplicaba a ADMIN)
+
   const operacion = activo ? "REACTIVACION" : "SUSPENSION";
 
   const updated = await prisma.$transaction(async (tx) => {

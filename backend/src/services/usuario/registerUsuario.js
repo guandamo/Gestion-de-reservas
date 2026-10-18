@@ -113,6 +113,7 @@ export async function registerUsuario({
       nombre: nuevoUsuario.nombre,
       apellido: nuevoUsuario.apellido,
       email: nuevoUsuario.email,
+      telefono: nuevoUsuario.telefono,
       rol: nuevoUsuario.rol,
     },
   };
