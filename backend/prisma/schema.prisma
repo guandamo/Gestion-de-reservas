@@ -114,6 +114,7 @@ model Usuario {
   nombre       String
   apellido     String
   email        String    @unique
+  telefono     String?   @unique
   contrasena   String
   rol          RolUsuario @default(USUARIO)
   created_at   DateTime  @default(now())

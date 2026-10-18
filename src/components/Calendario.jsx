@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client.js';
+import Leyenda from './calendario/Leyenda.jsx';
+import GlideSelect from './GlideSelect.jsx';
+import {
+    generarHorarios,
+    formatearDiaCorto,
+    formatearNumero,
+    formatearFechaCorta,
+    formatearFechaLarga,
+} from './calendario/utils.js';
 
 /**
  * Calendario de una cancha específica.
@@ -130,21 +139,27 @@ export default function Calendario({ canchaId: canchaIdProp, canchas: canchasPro
 
     return (
         <div className="space-y-4">
-            {/* Selector de cancha */}
+            {/* Selector de cancha (GlideSelect) */}
             <div className="flex items-center gap-3 flex-wrap">
                 <label className="text-sm text-gray-400">Cancha:</label>
-                <select
-                    value={canchaId ?? ''}
-                    onChange={(e) => setCanchaId(Number(e.target.value))}
-                    className="bg-[#222222] text-blanco text-sm border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-verde-principal"
-                >
-                    {canchas.map((c) => (
-                        <option key={c.id} value={c.id}>
-                            {c.nombre}
-                            {c.tipoCancha ? ` · ${c.tipoCancha.descripcion}` : ''}
-                        </option>
-                    ))}
-                </select>
+                <GlideSelect
+                    size="md"
+                    radius={9}
+                    menuWidth={260}
+                    value={canchaId != null ? String(canchaId) : ''}
+                    onChange={(val) => setCanchaId(Number(val))}
+                    options={canchas.map((c) => ({
+                        value: String(c.id),
+                        label: c.nombre,
+                        tag: c.tipoCancha?.descripcion || undefined,
+                    }))}
+                    placeholder="Elegí una cancha"
+                    ariaLabel="Cancha"
+                    accentColor="#3ecf8e"
+                    surfaceColor="#222222"
+                    highlightColor="#3f3f46"
+                    textColor="#f5f5f5"
+                />
                 {disponibilidad && (
                     <span className="text-xs text-gray-400">
                         ${Number(disponibilidad.cancha.precioTurno).toLocaleString('es-AR')} / turno · {disponibilidad.cancha.horaInicio}–{disponibilidad.cancha.horaFin}
@@ -322,54 +337,4 @@ function CeldaTurno({ turno, onClick }) {
             {texto}
         </div>
     );
-}
-
-function Leyenda({ color, texto }) {
-    return (
-        <span className="flex items-center gap-1.5 text-gray-400">
-            <span className={`w-2.5 h-2.5 rounded-full ${color}`}></span>
-            {texto}
-        </span>
-    );
-}
-
-// Genera las filas de horarios según el rango de la cancha (1 hora por turno)
-function generarHorarios(horaInicio, horaFin) {
-    if (!horaInicio || !horaFin) return [];
-    const [hi, mi] = horaInicio.split(':').map(Number);
-    const [hf, mf] = horaFin.split(':').map(Number);
-    const start = hi * 60 + mi;
-    const end = hf * 60 + mf;
-    const out = [];
-    for (let m = start; m < end; m += 60) {
-        const hh = String(Math.floor(m / 60)).padStart(2, '0');
-        out.push(`${hh}:00`);
-    }
-    return out;
-}
-
-function formatearDiaCorto(fecha) {
-    const d = new Date(fecha + 'T00:00:00');
-    return d.toLocaleDateString('es-AR', { weekday: 'short' }).toUpperCase().slice(0, 3);
-}
-
-function formatearNumero(fecha) {
-    const d = new Date(fecha + 'T00:00:00');
-    return d.getDate();
-}
-
-function formatearFechaCorta(fecha) {
-    if (!fecha) return '';
-    const d = new Date(fecha + 'T00:00:00');
-    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-}
-
-function formatearFechaLarga(fecha) {
-    if (!fecha) return '';
-    const d = new Date(fecha + 'T00:00:00');
-    return d.toLocaleDateString('es-AR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-    });
 }

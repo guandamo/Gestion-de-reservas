@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
+import GlideSelect from '../components/GlideSelect.jsx';
 
 const estadoStyles = {
     ACTIVO: 'bg-green-500/20 text-green-400 border border-green-500/30',
@@ -118,15 +119,21 @@ export default function Usuarios() {
                     placeholder="Buscar por nombre o email..."
                     className="flex-1 bg-[#222222] text-blanco text-sm border border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-verde-principal placeholder:text-gray-500"
                 />
-                <select
+                <GlideSelect
+                    size="md"
                     value={filtroRol}
-                    onChange={(e) => setFiltroRol(e.target.value)}
-                    className="bg-[#222222] text-blanco text-sm border border-white/10 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-verde-principal"
-                >
-                    <option value="todos">Todos los roles</option>
-                    <option value="USUARIO">Usuarios</option>
-                    <option value="ADMIN">Admins</option>
-                </select>
+                    onChange={(val) => setFiltroRol(val)}
+                    options={[
+                        { value: 'todos', label: 'Todos los roles' },
+                        { value: 'USUARIO', label: 'Usuarios' },
+                        { value: 'ADMIN', label: 'Admins' },
+                    ]}
+                    ariaLabel="Rol"
+                    accentColor="#3ecf8e"
+                    surfaceColor="#222222"
+                    highlightColor="#3f3f46"
+                    textColor="#f5f5f5"
+                />
                 <button
                     onClick={cargar}
                     className="text-xs bg-white/10 hover:bg-white/20 text-blanco px-3 py-2.5 rounded-lg"

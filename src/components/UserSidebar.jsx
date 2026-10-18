@@ -1,19 +1,15 @@
 import { NavLink } from 'react-router-dom';
-
-const items = [
-    { to: '/user/reservar', label: 'Reservar', icon: '📅', end: false },
-    { to: '/user/mis-reservas', label: 'Mis reservas', icon: '📋', end: false },
-];
+import { userItems } from './sidebarItems.js';
 
 export default function UserSidebar() {
     return (
-        <aside className="w-52 bg-verde-claro text-negro flex flex-col min-h-[calc(100vh-60px)] p-3 shadow-inner">
+        <aside className="hidden lg:flex w-52 bg-verde-claro text-negro flex flex-col min-h-[calc(100vh-60px)] p-3 shadow-inner">
             <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 px-3">
                 Mi cuenta
             </div>
 
             <nav className="flex flex-col gap-1">
-                {items.map((item) => (
+                {userItems.map((item) => (
                     <NavLink
                         key={item.to}
                         to={item.to}

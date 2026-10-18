@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
+import GlideSelect from '../components/GlideSelect.jsx';
 
 const formVacio = {
     nombre: '',
@@ -28,7 +29,6 @@ export default function CanchasYPrecios() {
     async function cargar() {
         setCargando(true);
         setError('');
-
         try {
             const [tipos, cts] = await Promise.all([
                 api.get('/court-types'),
@@ -110,7 +110,6 @@ export default function CanchasYPrecios() {
 
     const handleGuardar = async (e) => {
         e.preventDefault();
-
         if (!form.nombre || !form.idTipoCancha || !form.precioTurno) {
             alert('Completá nombre, tipo de cancha y precio.');
             return;
@@ -127,13 +126,11 @@ export default function CanchasYPrecios() {
 
         try {
             setGuardando(true);
-
             if (editandoId) {
                 await api.patch(`/courts/${editandoId}`, payload);
             } else {
                 await api.post('/courts', payload);
             }
-
             await cargar();
             cerrarForm();
         } catch (e) {
@@ -147,7 +144,6 @@ export default function CanchasYPrecios() {
         if (!window.confirm(`¿Dar de baja "${cancha.nombre}"? Quedará inactiva hasta reactivarla.`)) {
             return;
         }
-
         try {
             await api.patch(`/courts/${cancha.id}`, {
                 nombre: cancha.nombre,
@@ -163,12 +159,19 @@ export default function CanchasYPrecios() {
         }
     };
 
+    /**
+     * Clases de input/select mobile-first:
+     *  - mobile: bg-[#171717] text-blanco border-white/10 (dark, encaja con el card)
+     *  - desktop (≥sm): mantiene el estilo claro original (legado, ya validado por usuarios)
+     */
+    const inputBase =
+        'w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal bg-[#171717] text-blanco border border-white/10 sm:bg-white sm:text-black sm:border-transparent';
+    const labelBase = 'block text-xs text-gray-400 mb-1';
+
     return (
         <div>
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-blanco">
-                    Canchas y precios
-                </h2>
+            <div className="flex items-center justify-between mb-4 lg:mb-6">
+                <h2 className="text-2xl font-bold text-blanco">Canchas y precios</h2>
                 <button
                     onClick={abrirNueva}
                     className="flex items-center gap-2 bg-verde-principal hover:bg-verde-principal/90 text-blanco text-sm font-medium px-4 py-2 rounded-lg transition"
@@ -189,23 +192,19 @@ export default function CanchasYPrecios() {
                     className="bg-[#222222] rounded-xl border border-white/5 p-5 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                 >
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                            Nombre
-                        </label>
+                        <label className={labelBase}>Nombre</label>
                         <input
                             type="text"
                             value={form.nombre}
                             onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                             placeholder="Cancha 5"
-                            className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
+                            className={inputBase}
                         />
                     </div>
 
                     <div>
                         <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs text-gray-400">
-                                Tipo de cancha
-                            </label>
+                            <label className={labelBase}>Tipo de cancha</label>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -217,90 +216,91 @@ export default function CanchasYPrecios() {
                                 + Nuevo tipo
                             </button>
                         </div>
-                        <select
-                            value={form.idTipoCancha}
-                            onChange={(e) => setForm({ ...form, idTipoCancha: e.target.value })}
-                            className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
-                        >
-                            <option value="">Seleccionar...</option>
-                            {tiposCancha.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                    {t.descripcion}
-                                </option>
-                            ))}
-                        </select>
+                        <GlideSelect
+                            size="md"
+                            value={form.idTipoCancha === '' ? '' : String(form.idTipoCancha)}
+                            onChange={(val) => setForm({ ...form, idTipoCancha: val })}
+                            options={[
+                                { value: '', label: 'Seleccionar...' },
+                                ...tiposCancha.map((t) => ({
+                                    value: String(t.id),
+                                    label: t.descripcion,
+                                })),
+                            ]}
+                            ariaLabel="Tipo de cancha"
+                            accentColor="#3ecf8e"
+                            surfaceColor="#333333"
+                            highlightColor="#4a4a4a"
+                            textColor="#f5f5f5"
+                            className="w-full"
+                        />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                            Precio por hora ($)
-                        </label>
+                        <label className={labelBase}>Precio por hora ($)</label>
                         <input
                             type="number"
                             min="0"
                             value={form.precioTurno}
                             onChange={(e) => setForm({ ...form, precioTurno: e.target.value })}
                             placeholder="3000"
-                            className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
+                            className={inputBase}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                            Hora inicio
-                        </label>
+                        <label className={labelBase}>Hora inicio</label>
                         <input
                             type="time"
                             value={form.horaInicio}
                             onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
-                            className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
+                            className={`${inputBase} scheme-dark sm:scheme-light`}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                            Hora fin
-                        </label>
+                        <label className={labelBase}>Hora fin</label>
                         <input
                             type="time"
                             value={form.horaFin}
                             onChange={(e) => setForm({ ...form, horaFin: e.target.value })}
-                            className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
+                            className={`${inputBase} scheme-dark sm:scheme-light`}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                            Estado
-                        </label>
-                        <select
+                        <label className={labelBase}>Estado</label>
+                        <GlideSelect
+                            size="md"
                             value={form.activa ? 'activa' : 'inactiva'}
-                            onChange={(e) => setForm({ ...form, activa: e.target.value === 'activa' })}
-                            className="w-full bg-white text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal"
-                        >
-                            <option value="activa">Activa</option>
-                            <option value="inactiva">Inactiva</option>
-                        </select>
+                            onChange={(val) => setForm({ ...form, activa: val === 'activa' })}
+                            options={[
+                                { value: 'activa', label: 'Activa' },
+                                { value: 'inactiva', label: 'Inactiva' },
+                            ]}
+                            ariaLabel="Estado"
+                            accentColor="#3ecf8e"
+                            surfaceColor="#333333"
+                            highlightColor="#4a4a4a"
+                            textColor="#f5f5f5"
+                            className="w-full"
+                        />
                     </div>
 
-                    <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-3 mt-2">
+                    <div className="sm:col-span-2 lg:col-span-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-2">
                         <button
                             type="button"
                             onClick={cerrarForm}
-                            className="text-sm text-gray-300 hover:text-blanco px-4 py-2 transition"
+                            className="text-sm text-gray-300 hover:text-blanco px-4 py-2 transition order-2 sm:order-1"
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
                             disabled={guardando}
-                            className="bg-verde-principal hover:bg-verde-principal/90 text-blanco text-sm font-medium px-5 py-2 rounded-lg transition disabled:opacity-60"
+                            className="bg-verde-principal hover:bg-verde-principal/90 text-blanco text-sm font-medium px-5 py-2 rounded-lg transition disabled:opacity-60 order-1 sm:order-2"
                         >
-                            {guardando
-                                ? 'Guardando...'
-                                : editandoId
-                                  ? 'Guardar cambios'
-                                  : 'Crear cancha'}
+                            {guardando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Crear cancha'}
                         </button>
                     </div>
                 </form>
@@ -308,69 +308,64 @@ export default function CanchasYPrecios() {
 
             <div className="flex flex-col gap-3">
                 {cargando ? (
-                    <p className="text-gray-400 text-center py-8">
-                        Cargando canchas...
-                    </p>
+                    <p className="text-gray-400 text-center py-8">Cargando canchas...</p>
                 ) : canchas.length === 0 ? (
-                    <p className="text-gray-400 text-center py-8">
-                        No hay canchas cargadas todavía.
-                    </p>
+                    <p className="text-gray-400 text-center py-8">No hay canchas cargadas todavía.</p>
                 ) : (
                     canchas.map((cancha) => {
                         const horaIni = toHora(cancha.horaInicio);
                         const horaFin = toHora(cancha.horaFin);
-
                         return (
                             <div
                                 key={cancha.id}
-                                className="bg-[#222222] rounded-xl border border-white/5 px-5 py-4 flex items-center justify-between"
+                                className="bg-[#222222] rounded-xl border border-white/5 px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                             >
-                                <div className="flex items-center gap-3">
+                                {/* Bloque principal: nombre + meta */}
+                                <div className="flex items-start sm:items-center gap-3 min-w-0">
                                     <span
-                                        className={`w-2.5 h-2.5 rounded-full ${
+                                        className={`mt-1.5 sm:mt-0 w-2.5 h-2.5 rounded-full shrink-0 ${
                                             cancha.activa ? 'bg-green-500' : 'bg-gray-500'
                                         }`}
                                     />
-                                    <div>
-                                        <p className="text-blanco font-medium">
+                                    <div className="min-w-0">
+                                        <p className="text-blanco font-medium truncate">
                                             {cancha.nombre}
                                         </p>
-                                        <p className="text-gray-400 text-xs">
+                                        <p className="text-gray-400 text-xs truncate">
                                             {descripcionTipo(cancha.idTipoCancha)}
                                             {!cancha.activa && ' · Inactiva'}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-8">
-                                    <div className="text-right">
-                                        <p className="text-gray-400 text-xs">
-                                            Precio
-                                        </p>
-                                        <p className="text-blanco text-sm font-medium">
-                                            ${Number(cancha.precioTurno).toLocaleString('es-AR')}/hr
-                                        </p>
-                                    </div>
-                                    <div className="text-right hidden sm:block">
-                                        <p className="text-gray-400 text-xs">
-                                            Horario
-                                        </p>
-                                        <p className="text-blanco text-sm font-medium">
-                                            {horaIni} - {horaFin}
-                                        </p>
+                                {/* Bloque secundario: precio + horario + acciones */}
+                                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 pl-5 sm:pl-0">
+                                    <div className="flex items-center gap-5 sm:gap-8">
+                                        <div className="text-left sm:text-right">
+                                            <p className="text-gray-400 text-xs">Precio</p>
+                                            <p className="text-blanco text-sm font-medium">
+                                                ${Number(cancha.precioTurno).toLocaleString('es-AR')}/hr
+                                            </p>
+                                        </div>
+                                        <div className="text-left sm:text-right">
+                                            <p className="text-gray-400 text-xs">Horario</p>
+                                            <p className="text-blanco text-sm font-medium">
+                                                {horaIni} - {horaFin}
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                                         <button
                                             onClick={() => abrirEditar(cancha)}
-                                            className="text-gray-300 hover:text-verde-claro transition"
+                                            className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-verde-claro transition"
                                             aria-label={`Editar ${cancha.nombre}`}
                                         >
                                             ✏️
                                         </button>
                                         <button
                                             onClick={() => handleEliminar(cancha)}
-                                            className="text-red-400 hover:text-red-300 transition"
+                                            className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition"
                                             aria-label={`Dar de baja ${cancha.nombre}`}
                                             title="Baja lógica (soft-delete)"
                                         >
@@ -448,18 +443,15 @@ export default function CanchasYPrecios() {
 // Convierte "HH:MM:SS" o Date a "HH:MM"
 function toHora(value) {
     if (!value) return '';
-
     if (typeof value === 'string') {
         const m = value.match(/^(\d{2}:\d{2})/);
         return m ? m[1] : '';
     }
-
     if (value instanceof Date) {
         const hh = String(value.getUTCHours()).padStart(2, '0');
         const mm = String(value.getUTCMinutes()).padStart(2, '0');
         return `${hh}:${mm}`;
     }
-
     // Si vino como ISO
     try {
         const d = new Date(value);
