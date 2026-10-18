@@ -17,8 +17,18 @@ export async function login(req, res) {
     return res.status(400).json({ error: "Faltan credenciales" });
   }
 
-  const resultado = await loginUsuario({ email, contrasena });
-  return res.json(resultado);
+  try {
+    const resultado = await loginUsuario({ email, contrasena });
+    return res.json(resultado);
+  } catch (e) {
+    if (e.message === "datos no validos") {
+      return res.status(401).json({ error: "Correo o contraseña incorrectos" });
+    }
+    if (e.message === "El usuario está desactivado") {
+      return res.status(403).json({ error: e.message });
+    }
+    throw e;
+  }
 }
 
 /**

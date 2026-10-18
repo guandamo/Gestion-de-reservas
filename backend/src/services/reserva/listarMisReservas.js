@@ -1,17 +1,34 @@
 import { prisma } from "../../config/prisma.js";
+import { inicioTurno } from "../../utils/turnoHorario.js";
+import { HttpError } from "../../utils/httpError.js";
 
 /**
  * Lista las reservas (activas y canceladas) del usuario autenticado,
  * con datos del turno y la cancha, ordenadas por fecha de turno descendente.
  */
 export async function listarMisReservas({ idUsuario } = {}) {
-  if (!idUsuario) throw new Error("idUsuario requerido");
+  if (!idUsuario) {
+  throw new HttpError(401, "Usuario no autenticado.");
+  }
+
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: idUsuario },
+    select: { rol: true, activo: true },
+  });
+
+  if (!usuario || !usuario.activo) {
+    throw new HttpError(401, "Usuario no autenticado.");
+  }
+
+  const esAdmin = usuario.rol === "ADMIN";
+  const ahora = Date.now();
 
   const reservas = await prisma.reserva.findMany({
     where: { idUsuario },
     include: {
+      pago: { select: { estado: true } },
       turno: { include: { cancha: { include: { tipoCancha: true } } } },
-    },
+    }, 
     orderBy: [
       { turno: { fecha: "desc" } },
       { turno: { horaInicio: "desc" } },
@@ -23,6 +40,15 @@ export async function listarMisReservas({ idUsuario } = {}) {
     estado: r.estado,
     fechaAlta: r.fechaAlta,
     cancelledAt: r.cancelledAt,
+    puedeCancelar:
+      r.estado === "PENDIENTE" &&
+      r.pago?.estado !== "PAGADO" &&
+      Number.isFinite(inicioTurno(r.turno).getTime()) &&
+      (
+        esAdmin
+          ? inicioTurno(r.turno).getTime() > ahora
+          : inicioTurno(r.turno).getTime() - ahora >= 24 * 60 * 60 * 1000
+      ),
     turno: {
       id: r.turno.id,
       fecha: r.turno.fecha,

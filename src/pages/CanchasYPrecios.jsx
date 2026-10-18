@@ -21,6 +21,11 @@ export default function CanchasYPrecios() {
     const [error, setError] = useState('');
     const [guardando, setGuardando] = useState(false);
 
+    const [mostrarTipoForm, setMostrarTipoForm] = useState(false);
+    const [descripcionTipoNueva, setDescripcionTipoNueva] = useState('');
+    const [guardandoTipo, setGuardandoTipo] = useState(false);
+    const [errorTipo, setErrorTipo] = useState('');
+
     async function cargar() {
         setCargando(true);
         setError('');
@@ -70,6 +75,39 @@ export default function CanchasYPrecios() {
         setForm(formVacio);
     };
 
+    const handleCrearTipo = async (e) => {
+        e.preventDefault();
+        const descripcion = descripcionTipoNueva.trim();
+
+        if (!descripcion) {
+            setErrorTipo('Ingresá una descripción.');
+            return;
+        }
+
+        try {
+            setGuardandoTipo(true);
+            setErrorTipo('');
+
+            const nuevoTipo = await api.post('/court-types', { descripcion });
+
+            setTiposCancha((actuales) =>
+                [...actuales, nuevoTipo].sort((a, b) =>
+                    a.descripcion.localeCompare(b.descripcion, 'es')
+                )
+            );
+            setForm((actual) => ({
+                ...actual,
+                idTipoCancha: String(nuevoTipo.id),
+            }));
+            setDescripcionTipoNueva('');
+            setMostrarTipoForm(false);
+        } catch (e) {
+            setErrorTipo(e.message || 'No se pudo crear el tipo de cancha.');
+        } finally {
+            setGuardandoTipo(false);
+        }
+    };
+
     const handleGuardar = async (e) => {
         e.preventDefault();
         if (!form.nombre || !form.idTipoCancha || !form.precioTurno) {
@@ -95,16 +133,17 @@ export default function CanchasYPrecios() {
             }
             await cargar();
             cerrarForm();
-        } catch (e2) {
-            alert(e2.message || 'No se pudo guardar la cancha.');
+        } catch (e) {
+            alert(e.message || 'No se pudo guardar la cancha.');
         } finally {
             setGuardando(false);
         }
     };
 
     const handleEliminar = async (cancha) => {
-        if (!window.confirm(`¿Dar de baja "${cancha.nombre}"? Quedará inactiva hasta reactivarla.`))
+        if (!window.confirm(`¿Dar de baja "${cancha.nombre}"? Quedará inactiva hasta reactivarla.`)) {
             return;
+        }
         try {
             await api.patch(`/courts/${cancha.id}`, {
                 nombre: cancha.nombre,
@@ -164,7 +203,19 @@ export default function CanchasYPrecios() {
                     </div>
 
                     <div>
-                        <label className={labelBase}>Tipo de cancha</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className={labelBase}>Tipo de cancha</label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setErrorTipo('');
+                                    setMostrarTipoForm(true);
+                                }}
+                                className="text-xs text-verde-claro hover:text-white transition"
+                            >
+                                + Nuevo tipo
+                            </button>
+                        </div>
                         <GlideSelect
                             size="md"
                             value={form.idTipoCancha === '' ? '' : String(form.idTipoCancha)}
@@ -327,6 +378,64 @@ export default function CanchasYPrecios() {
                     })
                 )}
             </div>
+
+            {mostrarTipoForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                    <form
+                        onSubmit={handleCrearTipo}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="nuevo-tipo-titulo"
+                        className="w-full max-w-md rounded-xl border border-white/10 bg-[#222222] p-6 shadow-2xl"
+                    >
+                        <h3
+                            id="nuevo-tipo-titulo"
+                            className="mb-4 text-lg font-semibold text-blanco"
+                        >
+                            Nuevo tipo de cancha
+                        </h3>
+
+                        <label
+                            htmlFor="descripcion-tipo"
+                            className="mb-1 block text-xs text-gray-400"
+                        >
+                            Descripción
+                        </label>
+                        <input
+                            id="descripcion-tipo"
+                            autoFocus
+                            value={descripcionTipoNueva}
+                            onChange={(e) => setDescripcionTipoNueva(e.target.value)}
+                            placeholder="Ej.: Césped sintético"
+                            className="w-full rounded-lg bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-verde-principal"
+                        />
+
+                        {errorTipo && (
+                            <p role="alert" className="mt-2 text-sm text-red-300">
+                                {errorTipo}
+                            </p>
+                        )}
+
+                        <div className="mt-5 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                disabled={guardandoTipo}
+                                onClick={() => setMostrarTipoForm(false)}
+                                className="px-4 py-2 text-sm text-gray-300 hover:text-white"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={guardandoTipo}
+                                className="rounded-lg bg-verde-principal px-5 py-2 text-sm font-medium text-white disabled:opacity-60"
+                            >
+                                {guardandoTipo ? 'Guardando...' : 'Crear tipo'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
         </div>
     );
 }
