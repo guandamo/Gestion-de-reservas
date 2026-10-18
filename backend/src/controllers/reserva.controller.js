@@ -3,6 +3,7 @@ import { listarMisReservas } from "../services/reserva/listarMisReservas.js";
 import { listarTodasReservas } from "../services/reserva/listarTodasReservas.js";
 import { obtenerReserva } from "../services/reserva/obtenerReserva.js";
 import { HttpError } from "../utils/httpError.js";
+import { cancelarReserva } from "../services/reserva/cancelarReserva.js";
 
 /**
  * POST /api/reservations
@@ -51,4 +52,17 @@ export async function getReservationById(req, res) {
     rol: req.user.rol,
   });
   return res.json(detalle);
+}
+
+/**
+ * PATCH /api/reservations/:id/cancel
+ * USUARIO cancela su reserva hasta 24 h antes; ADMIN cualquiera hasta el inicio.
+ */
+export async function cancelReservation(req, res) {
+  const resultado = await cancelarReserva({
+    idReserva: req.params.id,
+    idUsuario: req.user.id,
+  });
+
+  return res.json(resultado);
 }

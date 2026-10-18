@@ -75,12 +75,11 @@ model Reserva {
   idUsuario Int
   idTurno   Int
 
-  usuario Usuario @relation(fields: [idUsuario], references: [id])
+  usuario Usuario @relation("Reserva_usuario", fields: [idUsuario], references: [id])
   turno   Turno   @relation(fields: [idTurno], references: [id])
 
   pago Pago?
 }
-
 enum EstadoReserva {
   PENDIENTE
   CONFIRMADA
@@ -127,7 +126,7 @@ model Usuario {
   modificador   Usuario?  @relation("Usuario_modificador", fields: [modificadoPor], references: [id], onDelete: SetNull)
   modificados   Usuario[] @relation("Usuario_modificador")
 
-  reservas          Reserva[]
+  reservas           Reserva[] @relation("Reserva_usuario")
   canchasModificadas  Cancha[]      @relation("Cancha_modificador")
   tiposModificados    TipoCancha[]  @relation("TipoCancha_modificador")
   auditLogs           AuditLog[]    @relation("AuditLog_performer")
