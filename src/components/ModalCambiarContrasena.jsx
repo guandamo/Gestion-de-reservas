@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client.js';
+import Modal from './Modal.jsx';
 
 const EMPTY_PASSWORD = {
     contrasenaActual: '',
@@ -10,8 +11,8 @@ const EMPTY_PASSWORD = {
 /**
  * Modal de cambio de contraseña.
  *
- * Reutiliza el patrón visual del ModalConfirmacionReserva (overlay oscuro,
- * panel redondeado con header/body/footer) y conserva los tres campos y las
+ * Renderiza como bottom sheet en mobile (<md) y como modal centrado en ≥md
+ * gracias al wrapper compartido `Modal`. Conserva los tres campos y las
  * validaciones del formulario original que vivía dentro de Mi perfil.
  *
  * Props:
@@ -35,9 +36,6 @@ export default function ModalCambiarContrasena({ open, onClose }) {
     const [mensajeExito, setMensajeExito] = useState('');
     const [operacionEnCurso, setOperacionEnCurso] = useState(false);
 
-    const dialogRef = useRef(null);
-    const primerCampoRef = useRef(null);
-
     // Resetear estado al abrir/cerrar para que los campos aparezcan vacíos.
     useEffect(() => {
         if (open) {
@@ -48,29 +46,6 @@ export default function ModalCambiarContrasena({ open, onClose }) {
             setOperacionEnCurso(false);
         }
     }, [open]);
-
-    // Cerrar con Escape y enfocar el primer campo al abrir.
-    useEffect(() => {
-        if (!open) return undefined;
-
-        const manejarTecla = (event) => {
-            if (event.key === 'Escape' && !operacionEnCurso) {
-                onClose?.();
-            }
-        };
-
-        document.addEventListener('keydown', manejarTecla);
-
-        // Dar tiempo al montaje antes de mover el foco.
-        const idFoco = window.setTimeout(() => {
-            primerCampoRef.current?.focus();
-        }, 0);
-
-        return () => {
-            document.removeEventListener('keydown', manejarTecla);
-            window.clearTimeout(idFoco);
-        };
-    }, [open, operacionEnCurso, onClose]);
 
     if (!open) return null;
 
@@ -148,122 +123,93 @@ export default function ModalCambiarContrasena({ open, onClose }) {
         }
     };
 
-    const cerrarSiNoOpera = () => {
-        if (operacionEnCurso) return;
-        onClose?.();
-    };
-
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fadeIn"
-            onClick={cerrarSiNoOpera}
-            role="presentation"
-        >
-            <div
-                ref={dialogRef}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="modal-cambiar-contrasena-titulo"
-                className="bg-[#222222] rounded-2xl shadow-2xl max-w-md w-full border border-white/10"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-                    <h3
-                        id="modal-cambiar-contrasena-titulo"
-                        className="text-blanco text-lg font-bold"
-                    >
-                        Cambiar contraseña
-                    </h3>
+        <Modal
+            open={open}
+            onClose={onClose}
+            title="Cambiar contraseña"
+            titleId="modal-cambiar-contrasena-titulo"
+            loading={operacionEnCurso}
+            size="sm"
+            footer={
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
                     <button
                         type="button"
-                        onClick={cerrarSiNoOpera}
+                        onClick={onClose}
                         disabled={operacionEnCurso}
-                        className="text-gray-400 hover:text-blanco transition disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Cerrar"
+                        className="flex-1 bg-white/10 hover:bg-white/20 text-blanco font-medium py-3 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        form="form-cambiar-contrasena"
+                        disabled={operacionEnCurso}
+                        className="flex-1 bg-verde-principal hover:brightness-110 text-blanco font-bold py-3 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {operacionEnCurso ? 'Actualizando...' : 'Cambiar contraseña'}
                     </button>
                 </div>
+            }
+        >
+            <form
+                id="form-cambiar-contrasena"
+                onSubmit={handleCambiarContrasena}
+                noValidate
+            >
+                <p className="text-sm text-gray-400">
+                    La nueva contraseña debe tener al menos 8 caracteres.
+                </p>
 
-                {/* Body */}
-                <form onSubmit={handleCambiarContrasena} noValidate className="px-6 py-5">
-                    <p className="text-sm text-gray-400">
-                        La nueva contraseña debe tener al menos 8 caracteres.
-                    </p>
+                <div className="mt-5 grid gap-4">
+                    <CampoContrasena
+                        label="Contraseña actual"
+                        name="contrasenaActual"
+                        value={password.contrasenaActual}
+                        onChange={handleChange}
+                        autoComplete="current-password"
+                        error={errores.contrasenaActual}
+                    />
+                    <CampoContrasena
+                        label="Nueva contraseña"
+                        name="contrasenaNueva"
+                        value={password.contrasenaNueva}
+                        onChange={handleChange}
+                        autoComplete="new-password"
+                        error={errores.contrasenaNueva}
+                    />
+                    <CampoContrasena
+                        label="Repetir nueva contraseña"
+                        name="confirmarContrasena"
+                        value={password.confirmarContrasena}
+                        onChange={handleChange}
+                        autoComplete="new-password"
+                        error={errores.confirmarContrasena}
+                    />
+                </div>
 
-                    <div className="mt-5 grid gap-4">
-                        <CampoContrasena
-                            label="Contraseña actual"
-                            name="contrasenaActual"
-                            value={password.contrasenaActual}
-                            onChange={handleChange}
-                            autoComplete="current-password"
-                            error={errores.contrasenaActual}
-                            inputRef={primerCampoRef}
-                        />
-                        <CampoContrasena
-                            label="Nueva contraseña"
-                            name="contrasenaNueva"
-                            value={password.contrasenaNueva}
-                            onChange={handleChange}
-                            autoComplete="new-password"
-                            error={errores.contrasenaNueva}
-                        />
-                        <CampoContrasena
-                            label="Repetir nueva contraseña"
-                            name="confirmarContrasena"
-                            value={password.confirmarContrasena}
-                            onChange={handleChange}
-                            autoComplete="new-password"
-                            error={errores.confirmarContrasena}
-                        />
+                {errorGeneral && (
+                    <div
+                        role="alert"
+                        className="mt-4 bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center"
+                    >
+                        {errorGeneral}
                     </div>
-
-                    {errorGeneral && (
-                        <div
-                            role="alert"
-                            className="mt-4 bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center"
-                        >
-                            {errorGeneral}
-                        </div>
-                    )}
-                    {mensajeExito && (
-                        <div
-                            role="status"
-                            className="mt-4 bg-green-500/20 border border-green-500/50 text-green-200 text-sm p-3 rounded-lg text-center"
-                        >
-                            {mensajeExito}
-                        </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
-                        <button
-                            type="button"
-                            onClick={cerrarSiNoOpera}
-                            disabled={operacionEnCurso}
-                            className="flex-1 bg-white/10 hover:bg-white/20 text-blanco font-medium py-3 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={operacionEnCurso}
-                            className="flex-1 bg-verde-principal hover:brightness-110 text-blanco font-bold py-3 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {operacionEnCurso ? 'Actualizando...' : 'Cambiar contraseña'}
-                        </button>
+                )}
+                {mensajeExito && (
+                    <div
+                        role="status"
+                        className="mt-4 bg-green-500/20 border border-green-500/50 text-green-200 text-sm p-3 rounded-lg text-center"
+                    >
+                        {mensajeExito}
                     </div>
-                </form>
-            </div>
-        </div>
+                )}
+            </form>
+        </Modal>
     );
 }
 
-function CampoContrasena({ label, name, value, onChange, autoComplete, error, inputRef }) {
+function CampoContrasena({ label, name, value, onChange, autoComplete, error }) {
     const id = `campo-${name}`;
     const errorId = `${id}-error`;
     return (
@@ -271,7 +217,6 @@ function CampoContrasena({ label, name, value, onChange, autoComplete, error, in
             <label htmlFor={id}>{label}</label>
             <input
                 id={id}
-                ref={inputRef}
                 name={name}
                 type="password"
                 value={value}
@@ -279,7 +224,7 @@ function CampoContrasena({ label, name, value, onChange, autoComplete, error, in
                 autoComplete={autoComplete}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : undefined}
-                className={`rounded-lg border bg-[#171717] px-3 py-2 text-blanco outline-none transition focus:border-verde-claro ${
+                className={`rounded-lg border bg-[#171717] px-3 py-2.5 text-blanco outline-none transition focus:border-verde-claro ${
                     error ? 'border-red-500/60' : 'border-white/10'
                 }`}
             />

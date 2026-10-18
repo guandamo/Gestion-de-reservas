@@ -7,7 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login';
 import AdminLayout from './layouts/AdminLayout';
 
-import Calendario from './components/Calendario';
+import MobileCalendario from './components/MobileCalendario.jsx';
 import Reportes from './pages/Reportes';
 import CanchasYPrecios from './pages/CanchasYPrecios';
 import Usuarios from './pages/Usuarios';
@@ -34,7 +34,7 @@ export default function App() {
                             </ProtectedRoute>
                         }
                     >
-                        <Route index element={<Calendario />} />
+                        <Route index element={<MobileCalendario showReserveCta={false} />} />
                         <Route path="reservas" element={<ReservasAdmin />} />
                         <Route path="reportes" element={<Reportes />} />
                         <Route path="canchas" element={<CanchasYPrecios />} />

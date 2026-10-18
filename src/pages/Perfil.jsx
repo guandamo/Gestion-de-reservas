@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import ModalCambiarContrasena from '../components/ModalCambiarContrasena.jsx';
 
 const EMPTY_PROFILE = { nombre: '', apellido: '', email: '', telefono: '' };
-const EMPTY_PASSWORD = { contrasenaActual: '', contrasenaNueva: '', confirmarContrasena: '' };
 
 export default function Perfil() {
     const { updateUser } = useAuth();
     const [perfil, setPerfil] = useState(EMPTY_PROFILE);
-    const [password, setPassword] = useState(EMPTY_PASSWORD);
     const [cargando, setCargando] = useState(true);
     const [guardandoPerfil, setGuardandoPerfil] = useState(false);
-    const [guardandoPassword, setGuardandoPassword] = useState(false);
     const [errorPerfil, setErrorPerfil] = useState('');
-    const [errorPassword, setErrorPassword] = useState('');
     const [mensajePerfil, setMensajePerfil] = useState('');
-    const [mensajePassword, setMensajePassword] = useState('');
+    const [modalPasswordAbierto, setModalPasswordAbierto] = useState(false);
 
     useEffect(() => {
         let vigente = true;
@@ -46,11 +43,6 @@ export default function Perfil() {
         setPerfil((actual) => ({ ...actual, [name]: value }));
     };
 
-    const handlePasswordChange = (event) => {
-        const { name, value } = event.target;
-        setPassword((actual) => ({ ...actual, [name]: value }));
-    };
-
     const guardarPerfil = async (event) => {
         event.preventDefault();
         setErrorPerfil('');
@@ -74,23 +66,6 @@ export default function Perfil() {
         }
     };
 
-    const guardarPassword = async (event) => {
-        event.preventDefault();
-        setErrorPassword('');
-        setMensajePassword('');
-        setGuardandoPassword(true);
-
-        try {
-            const data = await api.patch('/auth/me/password', password);
-            setPassword(EMPTY_PASSWORD);
-            setMensajePassword(data.mensaje);
-        } catch (error) {
-            setErrorPassword(error.message || 'No se pudo actualizar la contraseña.');
-        } finally {
-            setGuardandoPassword(false);
-        }
-    };
-
     if (cargando) {
         return <p className="text-gray-400">Cargando perfil...</p>;
     }
@@ -103,7 +78,22 @@ export default function Perfil() {
             </div>
 
             <form onSubmit={guardarPerfil} className="rounded-xl border border-white/10 bg-[#222222] p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-blanco">Datos personales</h3>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h3 className="text-lg font-semibold text-blanco">Datos personales</h3>
+                        <p className="mt-1 text-sm text-gray-400">
+                            Mantené tu información actualizada para que podamos contactarte.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setModalPasswordAbierto(true)}
+                        className="self-start rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-blanco transition hover:bg-white/10"
+                    >
+                        Cambiar contraseña
+                    </button>
+                </div>
+
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
                     <Field label="Nombre" name="nombre" value={perfil.nombre} onChange={handlePerfilChange} required />
                     <Field label="Apellido" name="apellido" value={perfil.apellido} onChange={handlePerfilChange} required />
@@ -119,22 +109,10 @@ export default function Perfil() {
                 </button>
             </form>
 
-            <form onSubmit={guardarPassword} className="rounded-xl border border-white/10 bg-[#222222] p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-blanco">Cambiar contraseña</h3>
-                <p className="mt-1 text-sm text-gray-400">La nueva contraseña debe tener al menos 8 caracteres.</p>
-                <div className="mt-5 grid gap-4">
-                    <Field label="Contraseña actual" name="contrasenaActual" type="password" value={password.contrasenaActual} onChange={handlePasswordChange} autoComplete="current-password" required />
-                    <Field label="Nueva contraseña" name="contrasenaNueva" type="password" value={password.contrasenaNueva} onChange={handlePasswordChange} autoComplete="new-password" minLength="8" required />
-                    <Field label="Repetir nueva contraseña" name="confirmarContrasena" type="password" value={password.confirmarContrasena} onChange={handlePasswordChange} autoComplete="new-password" minLength="8" required />
-                </div>
-
-                {errorPassword && <p className="mt-4 text-sm text-red-300">{errorPassword}</p>}
-                {mensajePassword && <p className="mt-4 text-sm text-green-300">{mensajePassword}</p>}
-
-                <button type="submit" disabled={guardandoPassword} className="mt-5 rounded-lg bg-verde-principal px-4 py-2 text-sm font-semibold text-blanco transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60">
-                    {guardandoPassword ? 'Actualizando...' : 'Cambiar contraseña'}
-                </button>
-            </form>
+            <ModalCambiarContrasena
+                open={modalPasswordAbierto}
+                onClose={() => setModalPasswordAbierto(false)}
+            />
         </section>
     );
 }
