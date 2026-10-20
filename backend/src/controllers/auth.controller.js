@@ -1,5 +1,4 @@
 import { loginUsuario } from "../services/usuario/loginUsuario.js";
-import { registerUsuario } from "../services/usuario/registerUsuario.js";
 import {
   actualizarPerfil,
   cambiarContrasena,
@@ -29,29 +28,6 @@ export async function login(req, res) {
     }
     throw e;
   }
-}
-
-/**
- * POST /api/auth/register
- * Body: { nombre, apellido, email, password, confirmPassword }
- */
-export async function register(req, res) {
-  const { nombre, apellido, email, password, confirmPassword } = req.body ?? {};
-
-  if (!nombre || !apellido || !email || !password || !confirmPassword) {
-    return res.status(400).json({ error: "Faltan campos obligatorios." });
-  }
-
-  const resultado = await registerUsuario({
-    nombre,
-    apellido,
-    email,
-    password,
-    confirmPassword,
-  });
-
-  // Status 201 (recurso creado). Mismo shape que /login.
-  return res.status(201).json(resultado);
 }
 
 export async function me(req, res) {

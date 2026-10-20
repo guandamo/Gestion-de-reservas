@@ -42,13 +42,39 @@ export function AuthProvider({ children }) {
     }, [persistSession]);
 
     /**
-     * Registro público: crea el usuario y deja la sesión iniciada.
-     * Espera {nombre, apellido, email, password, confirmPassword}.
+     * Registro público.
+     *
+     * Hoy el backend pide verificación por correo (OTP). Hay dos caminos:
+     *  1. `data.requiresVerification === true` → devolvemos `data` SIN
+     *     persistir sesión. El padre debe mostrar el modal de verificación y,
+     *     tras un verify-otp exitoso, llamar a `loginVerificadoUsuario()`.
+     *  2. Camino legacy (futuro): si el backend devolviera `data.token` y
+     *     `data.usuario` directo (sin requiresVerification), persistimos
+     *     sesión automáticamente.
+     *
+     * Devuelve siempre `data` para que el caller pueda inspeccionar la
+     * respuesta.
      */
     const register = useCallback(async (payload, { signal } = {}) => {
         const data = await api.post("/auth/register", payload, { signal });
-        persistSession(data.token, data.usuario);
-        return data.usuario;
+        if (data?.requiresVerification) {
+            // No persiste sesión todavía: el usuario no existe hasta que
+            // verifique el OTP.
+            return data;
+        }
+        // Camino legacy: si el backend alguna vez devuelve token directo.
+        if (data?.token && data?.usuario) {
+            persistSession(data.token, data.usuario);
+        }
+        return data;
+    }, [persistSession]);
+
+    /**
+     * Helper para que el Login/RegisterView, tras un verify-otp exitoso,
+     * persista la sesión exactamente igual que login.
+     */
+    const persistSessionFromVerify = useCallback((tokenValue, userValue) => {
+        persistSession(tokenValue, userValue);
     }, [persistSession]);
 
     const logout = useCallback(() => {
@@ -64,8 +90,8 @@ export function AuthProvider({ children }) {
     }, [persistSession, token]);
 
     const value = useMemo(
-        () => ({ token, user, ready, login, register, logout, updateUser }),
-        [token, user, ready, login, register, logout, updateUser],
+        () => ({ token, user, ready, login, register, logout, updateUser, persistSessionFromVerify }),
+        [token, user, ready, login, register, logout, updateUser, persistSessionFromVerify],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ApiError, NetworkError } from '../api/client.js';
+import ModalVerificacionCorreo from '../components/ModalVerificacionCorreo.jsx';
 
 // --- validaciones en espejo del backend ---
 function validarNombre(v) {
@@ -332,7 +333,7 @@ export default function Login() {
 // Registro
 // ============================================================
 function RegisterView({ onSwitchToLogin, navigate, from }) {
-    const { register } = useAuth();
+    const { register, persistSessionFromVerify } = useAuth();
 
     const [nombre, setNombre] = useState('');
     const [apellido, setApellido] = useState('');
@@ -342,6 +343,11 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
     const [errors, setErrors] = useState({});
     const [serverError, setServerError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Estado de la verificación OTP. Cuando está presente se monta el modal.
+    const [pending, setPending] = useState(null);
+    //   null                                            → no se inició registro
+    //   { pendingToken, email, expiresAt, cooldownEndsAt } → modal abierto
 
     const validarTodo = () => {
         const next = {
@@ -362,13 +368,32 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
 
         try {
             setLoading(true);
-            const user = await register({
+            const data = await register({
                 nombre: nombre.trim(),
                 apellido: apellido.trim(),
                 email: email.trim().toLowerCase(),
                 password,
                 confirmPassword,
             });
+
+            if (data?.requiresVerification) {
+                // Modal de OTP. NO persistimos sesión todavía.
+                setPending({
+                    pendingToken: data.pendingToken,
+                    email: data.email,
+                    expiresAt: data.expiresAt,
+                    cooldownEndsAt:
+                        new Date(Date.now() + 90_000).toISOString(),
+                });
+                return;
+            }
+
+            // Camino legacy (no usado hoy, pero por seguridad):
+            const user = data?.usuario;
+            if (!user) {
+                setServerError('Respuesta inesperada del servidor.');
+                return;
+            }
             const destino =
                 from && from !== '/login'
                     ? from
@@ -377,11 +402,25 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
                         : '/user';
             navigate(destino, { replace: true });
         } catch (err) {
-            if (err instanceof ApiError && err.status === 409) {
+            if (err instanceof NetworkError) {
+                setServerError(
+                    'No pudimos contactar al servidor. Revisá tu conexión e intentá de nuevo.',
+                );
+            } else if (err instanceof ApiError && err.status === 409) {
                 setServerError(
                     'Ya existe una cuenta registrada con ese correo electrónico.',
                 );
-            } else if (err instanceof ApiError && err.status === 400) {
+            } else if (err instanceof ApiError && err.status === 502) {
+                // El backend reenvía el motivo exacto que devolvió Resend
+                // (incluye la restricción del dominio de prueba
+                // `onboarding@resend.dev`, que solo puede enviar al email
+                // asociado a la cuenta). Mostrarlo verbatim ayuda a
+                // diagnosticar la causa sin filtrar secretos.
+                setServerError(
+                    err.message ||
+                        'No pudimos enviarte el código de verificación. Intentá de nuevo en unos minutos.',
+                );
+            } else if (err instanceof ApiError && err.status >= 400) {
                 setServerError(err.message || 'Datos inválidos.');
             } else {
                 setServerError(err?.message || 'No se pudo crear la cuenta.');
@@ -389,6 +428,23 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Cancelar la verificación: limpia el pending y deja los campos para
+    // que el usuario pueda corregir/editar antes de reintentar.
+    const handleCloseModal = () => setPending(null);
+
+    // OTP correcto: persistimos sesión y navegamos al destino.
+    const handleVerificado = ({ token, usuario }) => {
+        persistSessionFromVerify(token, usuario);
+        setPending(null);
+        const destino =
+            from && from !== '/login'
+                ? from
+                : usuario.rol === 'ADMIN'
+                    ? '/admin'
+                    : '/user';
+        navigate(destino, { replace: true });
     };
 
     // Para que el botón se habilite solo cuando no hay errores visibles
@@ -532,6 +588,17 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
                     </div>
                 </div>
             </div>
+
+            {/* ───── Modal de verificación OTP ───── */}
+            <ModalVerificacionCorreo
+                open={pending !== null}
+                onClose={handleCloseModal}
+                onVerificado={handleVerificado}
+                pendingToken={pending?.pendingToken}
+                email={pending?.email}
+                expiresAt={pending?.expiresAt}
+                cooldownEndsAt={pending?.cooldownEndsAt}
+            />
         </>
     );
 }

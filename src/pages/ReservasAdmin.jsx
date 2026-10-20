@@ -16,8 +16,59 @@ const LABEL_ESTADO = {
     CANCELADA: 'Cancelada',
 };
 
+const TEMPORALIDADES = ['HOY', 'SEMANA', 'MES', 'TOTAL'];
+
+const LABEL_TEMPORALIDAD = {
+    HOY: 'Hoy',
+    SEMANA: 'Esta semana',
+    MES: 'Este mes',
+    TOTAL: 'Total',
+};
+
+/**
+ * Devuelve el rango { desde, hasta } en formato YYYY-MM-DD según la temporalidad.
+ * TOTAL devuelve {} (sin filtro).
+ */
+function calcularRango(temporalidad) {
+    if (temporalidad === 'TOTAL') return {};
+
+    const hoy = new Date();
+    const y = hoy.getFullYear();
+    const m = hoy.getMonth();
+    const d = hoy.getDate();
+
+    const formatYMD = (date) => {
+        const yy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yy}-${mm}-${dd}`;
+    };
+
+    if (temporalidad === 'HOY') {
+        return { desde: formatYMD(hoy), hasta: formatYMD(hoy) };
+    }
+
+    if (temporalidad === 'SEMANA') {
+        // Lunes de esta semana (getDay: 0=domingo, 1=lunes, ...)
+        const offset = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
+        const lunes = new Date(y, m, d - offset);
+        const domingo = new Date(y, m, d - offset + 6);
+        return { desde: formatYMD(lunes), hasta: formatYMD(domingo) };
+    }
+
+    if (temporalidad === 'MES') {
+        const primerDia = new Date(y, m, 1);
+        // Día 0 del mes siguiente = último día del mes actual
+        const ultimoDia = new Date(y, m + 1, 0);
+        return { desde: formatYMD(primerDia), hasta: formatYMD(ultimoDia) };
+    }
+
+    return {};
+}
+
 export default function ReservasAdmin() {
     const [estado, setEstado] = useState('TODOS');
+    const [temporalidad, setTemporalidad] = useState('TOTAL');
     const [reservas, setReservas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -26,7 +77,12 @@ export default function ReservasAdmin() {
         try {
             setLoading(true);
             setError('');
-            const qs = estado !== 'TODOS' ? `?estado=${estado}` : '';
+            const params = new URLSearchParams();
+            if (estado !== 'TODOS') params.set('estado', estado);
+            const rango = calcularRango(temporalidad);
+            if (rango.desde) params.set('desde', rango.desde);
+            if (rango.hasta) params.set('hasta', rango.hasta);
+            const qs = params.toString() ? `?${params.toString()}` : '';
             const data = await api.get(`/reservations${qs}`);
             setReservas(Array.isArray(data?.items) ? data.items : []);
         } catch (err) {
@@ -39,7 +95,7 @@ export default function ReservasAdmin() {
     useEffect(() => {
         cargar();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [estado]);
+    }, [estado, temporalidad]);
 
     const resumen = {
         total: reservas.length,
@@ -55,20 +111,38 @@ export default function ReservasAdmin() {
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <h2 className="text-2xl font-bold text-blanco">Reservas</h2>
-                <GlideSelect
-                    size="md"
-                    value={estado}
-                    onChange={(val) => setEstado(val)}
-                    options={ESTADOS.map((e) => ({
-                        value: e,
-                        label: e === 'TODOS' ? 'Todos los estados' : LABEL_ESTADO[e] ?? e,
-                    }))}
-                    ariaLabel="Estado"
-                    accentColor="#3ecf8e"
-                    surfaceColor="#222222"
-                    highlightColor="#3f3f46"
-                    textColor="#f5f5f5"
-                />
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <GlideSelect
+                        size="md"
+                        value={temporalidad}
+                        onChange={(val) => setTemporalidad(val)}
+                        options={TEMPORALIDADES.map((t) => ({
+                            value: t,
+                            label: LABEL_TEMPORALIDAD[t] ?? t,
+                        }))}
+                        ariaLabel="Temporalidad"
+                        accentColor="#3ecf8e"
+                        surfaceColor="#222222"
+                        highlightColor="#3f3f46"
+                        textColor="#f5f5f5"
+                        className="w-full sm:w-44"
+                    />
+                    <GlideSelect
+                        size="md"
+                        value={estado}
+                        onChange={(val) => setEstado(val)}
+                        options={ESTADOS.map((e) => ({
+                            value: e,
+                            label: e === 'TODOS' ? 'Todos los estados' : LABEL_ESTADO[e] ?? e,
+                        }))}
+                        ariaLabel="Estado"
+                        accentColor="#3ecf8e"
+                        surfaceColor="#222222"
+                        highlightColor="#3f3f46"
+                        textColor="#f5f5f5"
+                        className="w-full sm:w-44"
+                    />
+                </div>
             </div>
 
             {/* Resumen */}
@@ -177,9 +251,9 @@ export default function ReservasAdmin() {
 
 function ResumenCard({ label, value, color = 'text-blanco' }) {
     return (
-        <div className="bg-[#222222] border border-white/5 rounded-xl p-4">
-            <div className="text-xs text-gray-400 mb-1">{label}</div>
-            <div className={`text-2xl font-bold ${color}`}>{value}</div>
+        <div className="bg-[#222222] border border-white/5 rounded-xl p-4 min-w-0">
+            <div className="text-xs text-gray-400 mb-1 break-words">{label}</div>
+            <div className={`text-2xl font-bold break-words ${color}`}>{value}</div>
         </div>
     );
 }
@@ -187,10 +261,10 @@ function ResumenCard({ label, value, color = 'text-blanco' }) {
 function ReservaMobile({ reserva }) {
     return (
         <div className="p-4 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-                <span className="text-blanco font-semibold">#{reserva.id} · {reserva.cancha.nombre}</span>
+            <div className="flex items-center justify-between gap-2 min-w-0">
+                <span className="text-blanco font-semibold truncate min-w-0">#{reserva.id} · {reserva.cancha.nombre}</span>
                 <span
-                    className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                    className={`text-xs font-medium px-3 py-1 rounded-full border shrink-0 ${
                         ESTILO_ESTADO[reserva.estado] ?? ESTILO_ESTADO.PENDIENTE
                     }`}
                 >

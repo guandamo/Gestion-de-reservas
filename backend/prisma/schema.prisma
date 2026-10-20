@@ -156,3 +156,29 @@ model AuditLog {
   @@index([performedBy])
   @@index([performedAt])
 }
+
+/// Solicitud de registro en dos pasos: el usuario completa el formulario,
+/// se persiste el hash de su contraseña + OTP, y se le envía un código por
+/// correo. Solo cuando verifica el código se crea el `Usuario` definitivo.
+///
+/// `pendingToken` (base64url, 32 bytes) es el identificador que el cliente
+/// usa para verificar, reenviar o consultar el estado. NO se usa el `id`
+/// entero en URLs/body para evitar que conocerlo autorice la solicitud.
+model PendingRegistration {
+  id             Int       @id @default(autoincrement())
+  pendingToken   String    @unique
+  email          String    @unique
+  nombre         String
+  apellido       String
+  contrasenaHash String
+  otpHash        String
+  otpExpiresAt   DateTime
+  lastOtpSentAt  DateTime
+  intentos       Int       @default(0)
+  reenvios       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  consumedAt     DateTime?
+
+  @@index([otpExpiresAt])
+}

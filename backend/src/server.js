@@ -6,6 +6,7 @@ import morgan from "morgan";
 
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler.js";
 import authRoutes from "./routes/auth.routes.js";
+import registrationRoutes from "./routes/registration.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import courtRoutes from "./routes/court.routes.js";
 import courtTypeRoutes from "./routes/courtType.routes.js";
@@ -14,6 +15,7 @@ import auditRoutes from "./routes/audit.routes.js";
 import reservaRoutes from "./routes/reserva.routes.js";
 import turnoRoutes from "./routes/turno.routes.js";
 import pagoRoutes from "./routes/pago.routes.js";
+import devEmailRoutes from "./routes/devEmail.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -49,6 +51,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 // --- API ---
 app.use("/api/auth", authRoutes);
+app.use("/api/auth", registrationRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/courts", courtRoutes);
 app.use("/api/court-types", courtTypeRoutes);
@@ -57,6 +60,11 @@ app.use("/api/audit", auditRoutes);
 app.use("/api/reservations", reservaRoutes);
 app.use("/api/turnos", turnoRoutes);
 app.use("/api/payments", pagoRoutes);
+
+// --- Dev tools (solo fuera de producción) ---
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/dev", devEmailRoutes);
+}
 
 // --- 404 + errores ---
 app.use(notFoundHandler);

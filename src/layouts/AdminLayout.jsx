@@ -29,7 +29,7 @@ export default function AdminLayout() {
 
             <div className="flex flex-1 min-h-0">
                 <Sidebar />
-                <main className="flex-1 p-4 lg:p-6 min-w-0">
+                <main className="flex-1 p-4 lg:p-6 min-w-0 overflow-x-hidden">
                     <Outlet />
                 </main>
             </div>
