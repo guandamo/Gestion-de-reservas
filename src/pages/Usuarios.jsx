@@ -81,7 +81,6 @@ export default function Usuarios() {
     });
 
     const totalUsuarios = usuarios.length;
-    const totalUsuariosRol = (rol) => usuarios.filter((u) => u.rol === rol).length;
     const totalSuspendidos = usuarios.filter((u) => !u.activo && u.rol !== 'ADMIN').length;
 
     return (
@@ -89,14 +88,10 @@ export default function Usuarios() {
             <h2 className="text-2xl font-bold text-blanco mb-6">Usuarios</h2>
 
             {/* Resumen */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="bg-[#222222] rounded-xl p-5 border border-white/5">
                     <p className="text-gray-400 text-sm mb-1">Total usuarios</p>
                     <p className="text-3xl font-bold text-blanco">{totalUsuarios}</p>
-                </div>
-                <div className="bg-[#222222] rounded-xl p-5 border border-white/5">
-                    <p className="text-gray-400 text-sm mb-1">Usuarios</p>
-                    <p className="text-3xl font-bold text-blanco">{totalUsuariosRol('USUARIO')}</p>
                 </div>
                 <div className="bg-[#222222] rounded-xl p-5 border border-white/5">
                     <p className="text-gray-400 text-sm mb-1">Suspendidos</p>
