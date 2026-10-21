@@ -69,7 +69,7 @@ const handleReservar = async () => {
             idReserva: reserva.reservationId,
         });
 
-        const enlace = pago.initPoint;
+        const enlace = pago.checkoutUrl;
 
         if (!enlace) {
             throw new Error('Mercado Pago no devolvió el enlace de pago.');
