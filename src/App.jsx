@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import Login from './pages/Login';
 import AdminLayout from './layouts/AdminLayout';
 
+import Calendario from './components/Calendario.jsx';
 import MobileCalendario from './components/MobileCalendario.jsx';
 import Reportes from './pages/Reportes';
 import CanchasYPrecios from './pages/CanchasYPrecios';
@@ -64,7 +65,23 @@ function Rutas() {
                         </ProtectedRoute>
                     }
                 >
-                    <Route index element={<MobileCalendario showReserveCta={false} />} />
+                    <Route
+                        index
+                        element={
+                            <>
+                                {/* El admin es de sólo lectura: se muestra el calendario
+                                    de grilla en desktop y el vertical en mobile, igual que
+                                hace ReservarView. Antes renderizaba siempre el mobile y en
+                                    una pantalla grande se veía angosto. */}
+                                <div className="hidden lg:block">
+                                    <Calendario />
+                                </div>
+                                <div className="lg:hidden">
+                                    <MobileCalendario showReserveCta={false} />
+                                </div>
+                            </>
+                        }
+                    />
                     <Route path="reservas" element={<ReservasAdmin />} />
                     <Route path="reportes" element={<Reportes />} />
                     <Route path="canchas" element={<CanchasYPrecios />} />
