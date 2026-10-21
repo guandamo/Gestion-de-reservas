@@ -4,6 +4,14 @@ import GlideSelect from '../components/GlideSelect.jsx';
 
 const ESTADOS = ['TODOS', 'PENDIENTE', 'CONFIRMADA', 'CANCELADA'];
 
+const TEMPORALIDADES = ['MENSUAL', 'SEMANAL', 'DIARIO'];
+
+const LABEL_TEMPORALIDAD = {
+    MENSUAL: 'Este mes',
+    SEMANAL: 'Esta semana',
+    DIARIO: 'Hoy',
+};
+
 const ESTILO_ESTADO = {
     PENDIENTE: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
     CONFIRMADA: 'bg-green-500/20 text-green-300 border-green-500/30',
@@ -16,8 +24,55 @@ const LABEL_ESTADO = {
     CANCELADA: 'Cancelada',
 };
 
+/**
+ * Resuelve un rango de fechas local (calendario del usuario) a partir del
+ * nombre de la temporalidad. Los `turno.fecha` están guardados como fechas
+ * calendario a 00:00 UTC, así que "hoy" en hora local del admin se mapea al
+ * día correspondiente que ve la base.
+ *
+ *  - DIARIO   → solo hoy
+ *  - SEMANAL  → lunes a domingo de la semana actual (ISO)
+ *  - MENSUAL  → primero al último día del mes actual
+ *
+ * Devuelve `YYYY-MM-DD` o `undefined` si la opción no se reconoce.
+ */
+function rangoTemporalidad(periodo) {
+    const ahora = new Date();
+
+    if (periodo === 'DIARIO') {
+        const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+        return { desde: fechaInput(hoy), hasta: fechaInput(hoy) };
+    }
+
+    if (periodo === 'SEMANAL') {
+        // getDay() devuelve 0=Dom..6=Sáb. Lo desplazamos para que 0=Lun.
+        const dow = (ahora.getDay() + 6) % 7;
+        const lunes = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - dow);
+        const domingo = new Date(lunes);
+        domingo.setDate(lunes.getDate() + 6);
+        return { desde: fechaInput(lunes), hasta: fechaInput(domingo) };
+    }
+
+    if (periodo === 'MENSUAL') {
+        const primero = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        // Día 0 del mes siguiente = último día del mes actual.
+        const ultimo = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
+        return { desde: fechaInput(primero), hasta: fechaInput(ultimo) };
+    }
+
+    return { desde: undefined, hasta: undefined };
+}
+
+function fechaInput(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 export default function ReservasAdmin() {
     const [estado, setEstado] = useState('TODOS');
+    const [temporalidad, setTemporalidad] = useState('MENSUAL');
     const [reservas, setReservas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -28,8 +83,15 @@ export default function ReservasAdmin() {
         try {
             setLoading(true);
             setError('');
-            const qs = estado !== 'TODOS' ? `?estado=${estado}` : '';
-            const data = await api.get(`/reservations${qs}`);
+
+            const params = new URLSearchParams();
+            if (estado !== 'TODOS') params.set('estado', estado);
+            const { desde, hasta } = rangoTemporalidad(temporalidad);
+            if (desde) params.set('desde', desde);
+            if (hasta) params.set('hasta', hasta);
+
+            const queryString = params.toString();
+            const data = await api.get(`/reservations${queryString ? `?${queryString}` : ''}`);
             setReservas(Array.isArray(data?.items) ? data.items : []);
         } catch (err) {
             setError(err.message || 'No se pudieron cargar las reservas.');
@@ -41,7 +103,7 @@ export default function ReservasAdmin() {
     useEffect(() => {
         cargar();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [estado]);
+    }, [estado, temporalidad]);
 
     /**
      * Cancelación desde el panel. Usa la misma ruta que el usuario
@@ -91,20 +153,36 @@ export default function ReservasAdmin() {
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <h2 className="text-2xl font-bold text-blanco">Reservas</h2>
-                <GlideSelect
-                    size="md"
-                    value={estado}
-                    onChange={(val) => setEstado(val)}
-                    options={ESTADOS.map((e) => ({
-                        value: e,
-                        label: e === 'TODOS' ? 'Todos los estados' : LABEL_ESTADO[e] ?? e,
-                    }))}
-                    ariaLabel="Estado"
-                    accentColor="#3ecf8e"
-                    surfaceColor="#222222"
-                    highlightColor="#3f3f46"
-                    textColor="#f5f5f5"
-                />
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <GlideSelect
+                        size="md"
+                        value={temporalidad}
+                        onChange={(val) => setTemporalidad(val)}
+                        options={TEMPORALIDADES.map((t) => ({
+                            value: t,
+                            label: LABEL_TEMPORALIDAD[t] ?? t,
+                        }))}
+                        ariaLabel="Temporalidad"
+                        accentColor="#3ecf8e"
+                        surfaceColor="#222222"
+                        highlightColor="#3f3f46"
+                        textColor="#f5f5f5"
+                    />
+                    <GlideSelect
+                        size="md"
+                        value={estado}
+                        onChange={(val) => setEstado(val)}
+                        options={ESTADOS.map((e) => ({
+                            value: e,
+                            label: e === 'TODOS' ? 'Todos los estados' : LABEL_ESTADO[e] ?? e,
+                        }))}
+                        ariaLabel="Estado"
+                        accentColor="#3ecf8e"
+                        surfaceColor="#222222"
+                        highlightColor="#3f3f46"
+                        textColor="#f5f5f5"
+                    />
+                </div>
             </div>
 
             {/* Resumen */}
