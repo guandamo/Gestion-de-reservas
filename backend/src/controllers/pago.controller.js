@@ -1,5 +1,6 @@
 import { crearPreferenciaPago } from "../services/pago/crearPreferenciaPago.js";
 import { procesarWebhookPago } from "../services/pago/procesarWebhookPago.js";
+import { consultarEstadoPago } from "../services/pago/consultarEstadoPago.js";
 
 export async function createPaymentPreference(req, res) {
   const resultado = await crearPreferenciaPago({
@@ -8,6 +9,25 @@ export async function createPaymentPreference(req, res) {
   });
 
   return res.status(201).json(resultado);
+}
+
+/**
+ * Estado real de un pago, verificado contra Mercado Pago.
+ *
+ * Es lo que consulta la pantalla de retorno (`/pago/exito`, `/pago/pendiente`,
+ * `/pago/fallo`) cuando el usuario vuelve del checkout. Los identificadores
+ * llegan por query (`payment_id`, `external_reference`) y solo sirven para
+ * saber qué consultar: el resultado se lee de la base después de validar el
+ * pago contra la API de Mercado Pago.
+ */
+export async function getPaymentStatus(req, res) {
+  const resultado = await consultarEstadoPago({
+    idPagoMP: req.query.payment_id ?? req.query.collection_id,
+    externalReference: req.query.external_reference,
+    idUsuario: req.user.id,
+  });
+
+  return res.status(200).json(resultado);
 }
 
 export async function receivePaymentWebhook(req, res) {

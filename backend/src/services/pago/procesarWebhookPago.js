@@ -115,6 +115,58 @@ if (String(pagoMP.collector_id) !== vendedorEsperado) {
       }
 
       if (pago.reserva.estado !== "PENDIENTE") {
+        // La reserva ya no espera pago. Hay dos situaciones distintas:
+        //
+        //  a) CANCELADA: el barrido de vencimiento (o el usuario) la cerró y el
+        //     turno pudo volver a DISPONIBLE y ser tomado por otra persona. El
+        //     pago llegó tarde, pero Mercado Pago SÍ cobró el dinero. Se registra
+        //     como PAGADO para que el cobro no quede invisible, y se devuelve 200
+        //     para que MP no reintente la notificación durante horas. NO se tocan
+        //     la Reserva ni el Turno: pertenecen al estado actual del turno, que
+        //     puede ser el de otro usuario.
+        //
+        //  b) CONFIRMADA: se resuelve arriba, en el chequeo de idempotencia
+        //     (`ya_procesado`).
+        if (pago.reserva.estado === "CANCELADA") {
+          await tx.pago.update({
+            where: { id: pago.id },
+            data: {
+              estado: "PAGADO",
+              idMercadoPago: idPagoMP,
+              fechaPago,
+            },
+          });
+
+          await createAuditLog({
+            entity: "Reserva",
+            entityId: pago.idReserva,
+            operation: "LATE_PAYMENT",
+            performedBy: null,
+            oldValues: {
+              estado: pago.reserva.estado,
+              estadoPago: pago.estado,
+            },
+            newValues: {
+              estadoPago: "PAGADO",
+              idPago: pago.id,
+              idMercadoPago: idPagoMP,
+              motivo: "PAGO_POSTERIOR_AL_VENCIMIENTO",
+              requiereDevolucion: true,
+            },
+            tx,
+          });
+
+          console.warn(
+            `[MP webhook] Pago ${idPagoMP} cobrado sobre una reserva cancelada ` +
+              `(reserva ${pago.idReserva}). Requiere devolución manual.`,
+          );
+
+          return {
+            resultado: "pago_posterior_a_vencimiento",
+            idReserva: pago.idReserva,
+          };
+        }
+
         throw new HttpError(
           409,
           "La reserva requiere revisión antes de confirmar el pago.",

@@ -14,6 +14,7 @@ import auditRoutes from "./routes/audit.routes.js";
 import reservaRoutes from "./routes/reserva.routes.js";
 import turnoRoutes from "./routes/turno.routes.js";
 import pagoRoutes from "./routes/pago.routes.js";
+import { iniciarJobs, detenerJobs } from "./jobs/index.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -64,4 +65,15 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`✔ API escuchando en http://localhost:${PORT}`);
+
+  // Barrido periódico de reservas pendientes que ya vencieron.
+  // El estado vive en la base, no en memoria: reiniciar el backend no deja
+  // turnos bloqueados.
+  iniciarJobs();
 });
+
+for (const señal of ["SIGTERM", "SIGINT"]) {
+  process.on(señal, () => {
+    detenerJobs();
+  });
+}

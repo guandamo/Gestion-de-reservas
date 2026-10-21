@@ -93,7 +93,8 @@ const handleReservar = async () => {
 
         setError(
             reserva
-                ? `Tu reserva #${reserva.reservationId} quedó pendiente de pago. ${mensaje}`
+                ? `Tu reserva #${reserva.reservationId} quedó pendiente de pago y se ` +
+                  `libera sola en 3 minutos si no la completás. ${mensaje}`
                 : mensaje
         );
     } finally {
@@ -113,15 +114,15 @@ const handleReservar = async () => {
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fadeIn"
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4 bg-black/70 animate-fadeIn"
             onClick={handleCerrarSiempre}
         >
             <div
-                className="bg-[#222222] rounded-2xl shadow-2xl max-w-md w-full border border-white/10"
+                className="bg-[#222222] border border-white/10 shadow-2xl w-full md:max-w-md flex flex-col rounded-t-2xl md:rounded-2xl max-h-[92dvh] md:max-h-[85vh] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <div className="flex items-center justify-between px-6 py-3 border-b border-white/10">
                     <h3 className="text-blanco text-lg font-bold">Confirmar reserva</h3>
                     <button
                         onClick={handleCerrarSiempre}
@@ -135,7 +136,7 @@ const handleReservar = async () => {
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-5 space-y-3">
+                <div className="px-6 py-4 space-y-2.5 overflow-y-auto min-h-0 overscroll-contain">
                     <Fila label="Cancha" valor={cancha.nombre} />
                     <Fila label="Tipo" valor={cancha.tipo?.descripcion ?? '—'} />
                     <Fila label="Fecha" valor={formatearFecha(turno.fecha)} />
@@ -157,13 +158,13 @@ const handleReservar = async () => {
                 </div>
 
                 {error && (
-                    <div className="mx-6 mb-4 bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center">
+                    <div className="mx-6 mb-3 bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center">
                         {error}
                     </div>
                 )}
 
                 {/* Footer */}
-                <div className="flex gap-3 px-6 pb-6">
+                <div className="flex gap-3 px-6 pb-5 pt-2 shrink-0">
                     <button
                         onClick={handleCerrar}
                         disabled={loading}

@@ -3,11 +3,16 @@ import { HttpError } from "../../utils/httpError.js";
 import { maxReservaDate } from "../../utils/dates.js";
 import { createAuditLog } from "../audit/createAuditLog.js";
 import { inicioTurno } from "../../utils/turnoHorario.js";
+import { EXPIRACION_RESERVA_MS } from "../../config/expiracion.js";
 
 /**
  * Crea una pre-reserva para el usuario autenticado.
  * Estado inicial: PENDIENTE (semánticamente equivalente a PENDING_PAYMENT).
  * Marca el Turno como RESERVADO dentro de la misma transacción.
+ *
+ * La reserva nace con `vencimientoAt = ahora + EXPIRACION_RESERVA_MS` (3 min por
+ * defecto). Si el usuario no completa el pago antes de ese instante, el barrido
+ * periódico del backend la cancela y devuelve el turno a DISPONIBLE.
  *
  * Verifica disponibilidad DENTRO de la transacción para evitar race conditions.
  *
@@ -97,11 +102,16 @@ export async function crearReserva({ idUsuario, idTurno } = {}) {
     }
 
     // 6) Crear la reserva después de haber tomado el turno.
+    //    `vencimientoAt` se calcula acá, dentro de la transacción, para que el
+    //    plazo arranque en el mismo instante en que el turno pasó a RESERVADO.
+    //    Si el usuario no paga antes de ese instante, el barrido periódico
+    //    (src/jobs/index.js) cancela la reserva y devuelve el turno.
     const reserva = await tx.reserva.create({
       data: {
         idUsuario,
         idTurno: turno.id,
         estado: "PENDIENTE",
+        vencimientoAt: new Date(Date.now() + EXPIRACION_RESERVA_MS),
       },
     });
 
@@ -118,6 +128,7 @@ export async function crearReserva({ idUsuario, idTurno } = {}) {
         idTurno: reserva.idTurno,
         estado: reserva.estado,
         fechaAlta: reserva.fechaAlta,
+        vencimientoAt: reserva.vencimientoAt,
         turno: {
           id: turno.id,
           fecha: turno.fecha,
@@ -145,6 +156,9 @@ export async function crearReserva({ idUsuario, idTurno } = {}) {
       idUsuario: resultado.reserva.idUsuario,
       estado: resultado.reserva.estado,
       fechaAlta: resultado.reserva.fechaAlta,
+      // El frontend solo informa ("te quedan N minutos"); la liberación real
+      // la decide el backend.
+      vencimientoAt: resultado.reserva.vencimientoAt,
       turno: {
         id: resultado.turno.id,
         fecha: resultado.turno.fecha,

@@ -45,14 +45,12 @@ export default function MisReservas({ refreshKey = 0 }) {
     async function cancelar(reserva) {
         if (operacionEnCurso.current) return;
 
-        const confirmar = window.confirm(
-            `¿Querés cancelar tu reserva de ${reserva.cancha.nombre} ` +
-            `del ${formatearFecha(reserva.turno.fecha)} ` +
-            `a las ${reserva.turno.horaInicio}?`
-        );
-
-        if (!confirmar) return;
-
+        // El botón "Cancelar" ejecuta directamente la acción de cancelación.
+        // Antes aquí había un `window.confirm(...)` (diálogo nativo del
+        // navegador) que pedía confirmación; se removió para que el handler
+        // del botón se ejecute sin popups intermedios. La operación sigue
+        // siendo idempotente y el backend decide qué hacer si la reserva
+        // ya estaba cancelada (caso `ya_cancelada`).
         operacionEnCurso.current = true;
         setCancelandoId(reserva.id);
         setAviso(null);
