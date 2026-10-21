@@ -1,6 +1,12 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
+    // Sin `baseUrl`: TypeScript lo marca como deprecado (TS5101) y deja de
+    // funcionar en la 7.0. No hace falta — desde que `paths` acepta valores
+    // relativos, "./src/*" se resuelve respecto de la ubicación de este
+    // archivo, que es la raíz del proyecto. Igual que antes.
+    //
+    // Lo que importa para el build es el alias `@` de `vite.config.js`, que
+    // ya estaba y no depende de este archivo.
     "paths": {
       "@/*": ["./src/*"]
     }
