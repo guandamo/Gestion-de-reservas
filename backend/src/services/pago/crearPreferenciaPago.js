@@ -18,22 +18,16 @@ const preferencias = new Preference(mercadoPago);
  * Ahora cada destino se puede sobreescribir por variable de entorno y, si no
  * está, se deriva de `FRONTEND_URL` + la ruta del SPA que lo maneja.
  *
- * REQUISITO REAL DE MERCADO PAGO (verificado contra la API en Sandbox):
- * las `back_urls` tienen que ser HTTPS **cuando la preferencia lleva
- * `auto_return`**. Mercado Pago **descarta silenciosamente** cualquier `http://`
- * o dirección privada en ese caso, y después falla con el críptico
- * "auto_return invalid. back_url.success must be defined".
- *
- * O sea que el requisito no depende de NODE_ENV: depende de `auto_return`, que
- * es lo único que decide este servicio (ver `debeUsarAutoReturn`). Con las
- * back_urls en `http://localhost` la preferencia se crea bien, sólo que sin
- * redirección automática y el usuario vuelve apretando «Volver a la tienda».
+ * REQUISITO REAL DE MERCADO PAGO (verificado contra la API en Sandbox el
+ * 2026-10-21): las `back_urls` tienen que ser **HTTPS, siempre**. Mercado
+ * Pago **descarta silenciosamente** cualquier `http://` —incluido un host
+ * público— y deja la preferencia creada con las tres URLs vacías y sin error
+ * visible. Sin ellas el checkout no tiene forma de volver a la app.
  *
  * En **desarrollo** (NODE_ENV !== "production") se acepta `http://localhost`
- * además de HTTPS con host público. Sin esa excepción, ningún dev podría
- * probar el flujo sin abrir un túnel. Si necesitás probar MP desde otra IP
- * (por ejemplo desde un celular), exponé el frontend con ngrok o cloudflared
- * y poné esa URL pública en FRONTEND_URL.
+ * para no bloquear el arranque, pero hay que saber que el retorno desde MP no
+ * va a funcionar hasta exponer el frontend con un túnel (ngrok / cloudflared)
+ * y poner esa URL HTTPS en FRONTEND_URL.
  */
 
 /** Hosts que MP nunca guarda como back_url, aunque el navegador los abra bien. */
@@ -116,24 +110,26 @@ function validarBackUrl(valor) {
 /**
  * Decide si la preferencia puede llevar `auto_return: "approved"`.
  *
- * Mercado Pago exige que las `back_urls` sean HTTPS en cuanto se usa
- * `auto_return`. Verificado contra la API en Sandbox (2026-10-21):
+ * `auto_return` es el redirect automático de MP al aprobarse el pago. Sólo se
+ * manda cuando las `back_urls` son HTTPS: combinado con URLs http://, MP
+ * responde 400 "auto_return invalid. back_url.success must be defined".
  *
- *   http://localhost + auto_return  -> 400 "auto_return invalid.
- *                                       back_url.success must be defined"
- *   http://localhost SIN auto_return -> OK
- *   https://        + auto_return  -> OK
+ * OJO con la conclusión que se sacaba antes de medirlo: se creía que el
+ * requisito de HTTPS era sólo una consecuencia de usar `auto_return`, y que
+ * sin él el checkout "funcionaba igual" (el usuario volvía apretando
+ * «Volver a la tienda»). **Eso era falso.** Verificado contra la API de MP
+ * Sandbox el 2026-10-21, leyendo de vuelta la preferencia creada:
  *
- * El mismo `http://localhost` funciona en las tres situaciones salvo
- * combinado con `auto_return`: MP descarta en silencio las URLs no-HTTPS y
- * después se queja de que no encontró `success`. O sea que el requisito de
- * HTTPS no depende de NODE_ENV sino del propio uso de `auto_return`, y por eso
- * acá se deriva del protocolo real de las URLs y no de una bandera de
- * entorno.
+ *   http://localhost:5173/pago/exito  -> guardada ""
+ *   http://example.org/pago/exito     -> guardada ""      (host público)
+ *   https://example.org/pago/exito    -> guardada OK
  *
- * Sin `auto_return` el checkout funciona igual: el usuario paga y tiene que
- * apretar "Volver a la tienda", que lo trae de vuelta al `success`. Es la
- * diferencia entre develop y producción.
+ * MP exige HTTPS para las `back_urls` SIEMPRE, y las descarta EN SILENCIO
+ * cuando no lo son: la preferencia se crea sin error y queda inservible. Con
+ * `FRONTEND_URL` en http:// el checkout no tiene forma de volver a la app.
+ *
+ * Ver `tests/flujo-retorno-mp.js`, que falla con este diagnóstico exacto
+ * cuando `FRONTEND_URL` no es HTTPS.
  */
 function debeUsarAutoReturn(backUrls) {
   return Object.values(backUrls).every((url) => url.startsWith("https://"));
