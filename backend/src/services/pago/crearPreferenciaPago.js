@@ -148,12 +148,20 @@ function resolverBackUrls() {
   const urls = {
     success: process.env.MP_RETURN_URL_SUCCESS || `${base}/pago/exito`,
     pending: process.env.MP_RETURN_URL_PENDING || `${base}/pago/pendiente`,
-    // Si el usuario abandona el checkout de MP (botón "Cancelar", timeout,
-    // error en la pasarela, etc.) lo mandamos directo a "Mis reservas" para
-    // que pueda ver su reserva pendiente, el tiempo que le queda y volver a
-    // pagar desde ahí si todavía está dentro de los 3 minutos. La pantalla
-    // /pago/fallo sigue existiendo por si alguien entra a esa URL directo.
-    failure: process.env.MP_RETURN_URL_FAILURE || `${base}/user/mis-reservas`,
+    // Los TRES destinos pasan por la misma pantalla de retorno a propósito.
+    //
+    // `/pago/fallo` es la única ruta que consulta `GET /api/payments/estado`
+    // en ese camino, y sin ese chequeo un pago que MP mande acá (abandono del
+    // checkout, rechazo, timeout de la pasarela) queda sin confirmar: la
+    // reserva sigue PENDIENTE y el barrido la libera a los 3 minutos aunque el
+    // usuario haya pagado. En localhost el webhook tampoco rescata esto porque
+    // los servidores de MP no alcanzan un localhost.
+    //
+    // La pantalla muestra el resultado real y a los 6 s manda al usuario a la
+    // página de turnos (`/user/reservar`), que es el destino final que se
+    // pidió, con un acceso secundario a "Mis reservas" para el que llegó
+    // desde un pago pendiente y todavía quiere pagarlo.
+    failure: process.env.MP_RETURN_URL_FAILURE || `${base}/pago/fallo`,
   };
 
   for (const [destino, valor] of Object.entries(urls)) {

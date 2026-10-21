@@ -6,15 +6,18 @@ import { api, ApiError, NetworkError, tokenStore } from '../api/client.js';
  * URL a la que el usuario llega después de que esta pantalla confirma
  * (o intenta confirmar) el estado del pago contra la API de Mercado Pago.
  *
- * Coincide con la URL pública del frontend que pidió el cliente como
- * destino final del flujo de retorno de MP. Si la página de reservas
- * cambia, este destino se cambia en un único lugar.
+ * Es el MISMO destino para los tres caminos —pago aprobado, pago rechazado o
+ * simplemente usuario que volvió sin pagar—: la página principal de turnos.
+ * Que el resultado haya sido bueno o malo no cambia a dónde se lo lleva.
+ *
+ * Concentrarlo acá evita que el destino se disperse entre el `navigate()`
+ * automático y el botón manual, que antes además ofrecían destinos distintos.
  */
 const DESTINO_POST_PAGO = '/user/reservar';
 
 /** Segundos que el usuario tiene para leer el resultado antes de la
- *  redirección automática. El botón "Ir a mis reservas" sigue disponible
- *  para los que no quieran esperar. */
+ *  redirección automática. El botón "Ir a los turnos" sigue disponible para
+ *  los que no quieran esperar. */
 const SEGUNDOS_REDIRECCION = 6;
 
 /**
@@ -38,6 +41,12 @@ const SEGUNDOS_REDIRECCION = 6;
  * No recibe la variante de la ruta a propósito: que el usuario caiga en
  * `/pago/exito` o en `/pago/fallo` no dice nada sobre el resultado real. Las
  * tres rutas montan el mismo componente y el mensaje sale siempre del backend.
+ *
+ * Las tres `back_urls` de la preferencia de MP apuntan acá a propósito
+ * (`crearPreferenciaPago.js`). Esta pantalla no es solo informativa: es la que
+ * dispara la verificación contra la API de Mercado Pago, que en localhost es la
+ * única vía de confirmación porque el webhook no puede alcanzar un localhost.
+ * Mandar el `failure` directo a otra página dejaría esos pagos sin confirmar.
  */
 export default function ResultadoPago() {
     const [searchParams] = useSearchParams();
@@ -350,10 +359,24 @@ function Acciones({ mostrarMisReservas, segundos }) {
                         onClick={() => navigate(destino, { replace: true })}
                         className="flex-1 text-center bg-verde-principal hover:brightness-110 text-blanco font-bold py-3 rounded-lg transition shadow-md"
                     >
-                        Ir a mis reservas
+                        Ir a los turnos
                     </button>
                 )}
             </div>
+
+            {/* Acceso secundario a "Mis reservas". El destino final del flujo es
+                la página de turnos, pero una reserva que quedó PENDIENTE (el
+                usuario volvió sin pagar, o el pago sigue en revisión) se puede
+                pagar desde ahí mientras el vencimiento no haya pasado. Sin este
+                link, ese camino queda a un click de más y se pierde de vista. */}
+            {mostrarMisReservas && (
+                <Link
+                    to="/user/mis-reservas"
+                    className="text-center text-sm text-verde-claro hover:text-blanco transition"
+                >
+                    Ver mis reservas
+                </Link>
+            )}
 
             {Number.isFinite(segundos) && segundos > 0 && (
                 <p className="text-center text-xs text-gray-400">
