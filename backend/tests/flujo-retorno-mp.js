@@ -22,6 +22,16 @@
  * días —lejos de la ventana de 30 días del generador, así que no lo toca—.
  * Lo único que crea (usuario, turno, reserva, pago) queda ligado a un turno
  * puntual y se borra por id al final.
+ *
+ * ── Expectativa de resultado ─────────────────────────────────────────────
+ * Con `FRONTEND_URL` en http:// (el caso normal en desarrollo) el Caso 2
+ * falla A PROPÓSITO: Mercado Pago descarta las back_urls http:// en silencio,
+ * así que es la forma de que la limitación sea visible en vez de quedar
+ * escondida detrás de un 201 engañoso. Con un FRONTEND_URL https (producción
+ * o túnel) los cuatro casos pasan.
+ *
+ * Contra la base de desarrollo, corre el backend primero:
+ *   node tests/flujo-retorno-mp.js
  */
 
 import bcrypt from "bcrypt";

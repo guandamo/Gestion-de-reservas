@@ -70,6 +70,19 @@ Pegar **a mano** desde el Dashboard (no commitear valores):
 | `RESERVATION_EXPIRATION_MS` | `180000` | 3 min, ya está bien por defecto |
 | `RESERVATION_SWEEP_INTERVAL_MS` | `30000` | cada 30 s, ya está bien por defecto |
 
+> **Las `back_urls` de Mercado Pago tienen que ser HTTPS.** MP las descarta
+> en silencio si no lo son: la preferencia se crea sin error pero con las tres
+> URLs vacías, y el checkout no tiene forma de volver a la app. En Render esto
+> no es problema —`FRONTEND_URL` ya es el HTTPS del Static Site— pero es la
+> razón por la que el flujo de retorno **no se puede probar en local** con
+> `FRONTEND_URL=http://localhost:5173`. Medido contra la API de MP Sandbox el
+> 2026-10-21: `http://localhost` y `http://<host público>` se descartan igual;
+> sólo `https://` se guarda. Para probarlo en local, túnel (ngrok/cloudflared)
+> y esa URL https en `FRONTEND_URL`.
+>
+> La prueba que lo detecta es `backend/tests/flujo-retorno-mp.js`: relee de la
+> API de MP lo que quedó guardado y falla con ese diagnóstico exacto.
+
 > **NO** se necesitan estas variables obsoletas aunque aparezcan comentadas
 > en algunas referencias: `RESEND_API_KEY`, `EMAIL_FROM`, `OTP_HASH_SECRET`,
 > `MP_WEBHOOK_SECRET`, `JWT_EXPIRES_IN`. El código no las lee.
