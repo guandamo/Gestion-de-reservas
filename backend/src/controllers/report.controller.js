@@ -157,18 +157,18 @@ function parseMes(mes) {
 
 function isToday(date) {
   if (!date) return false;
-  const d = new Date(date);
-  const today = new Date();
-  return (
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate()
-  );
+  // `fechaAlta` es un instante guardado en UTC. Compararlo con getters locales
+  // lo corría 3 horas: toda reserva hecha después de las 21:00 quedaba
+  // cargada con la fecha del día siguiente y no se contaba como "de hoy".
+  // Se resuelve el día de Argentina de ambos lados y se comparan las claves.
+  return startOfDay(date).getTime() === startOfDay().getTime();
 }
 
 function formatDate(d) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("es-AR");
+  // Con `timeZone` explícita: sin ella se usa la zona del servidor (UTC en
+  // Render) y un pago de las 22:00 del 31 se imprimía con fecha 1° en el PDF.
+  return new Date(d).toLocaleDateString("es-AR", { timeZone: "America/Buenos_Aires" });
 }
 
 function formatMoney(n) {

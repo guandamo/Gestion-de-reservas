@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
 import { generarTurnosParaCancha } from "./generadorTurnos.js";
+import { fechaClave } from "../../utils/dates.js";
 
 export async function editarCancha(idCancha, {
   nombre,
@@ -260,14 +261,8 @@ function horaAMinutos(hora) {
 
 
 function obtenerFechaHoy() {
-
-  const hoy = new Date();
-
-  return new Date(
-    Date.UTC(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate()
-    )
-  );
+  // El día de Argentina, no el del servidor: los getters `getFullYear/getMonth/
+  // getDate` son locales y en Render (UTC) devuelven el día siguiente entre las
+  // 21:00 y las 24:00 de Argentina.
+  return fechaClave();
 }

@@ -14,8 +14,8 @@ datasource db {
 model TipoCancha {
   id           Int      @id @default(autoincrement())
   descripcion  String   @unique
-  createdAt    DateTime @default(now())
-  modifiedAt   DateTime @updatedAt
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  modifiedAt   DateTime @updatedAt @db.Timestamptz(3)
   operacion    String?
   modificadoPor Int?
   modificador  Usuario? @relation("TipoCancha_modificador", fields: [modificadoPor], references: [id], onDelete: SetNull)
@@ -32,8 +32,8 @@ model Cancha {
   precioTurno   Decimal   @db.Decimal(10, 2)
 
   // Auditoría nivel 1
-  createdAt     DateTime  @default(now())
-  modifiedAt    DateTime  @updatedAt
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  modifiedAt    DateTime  @updatedAt @db.Timestamptz(3)
   operacion     String?
   modificadoPor Int?
   modificador   Usuario?  @relation("Cancha_modificador", fields: [modificadoPor], references: [id], onDelete: SetNull)
@@ -68,14 +68,14 @@ enum EstadoTurno {
 
 model Reserva {
   id          Int           @id @default(autoincrement())
-  fechaAlta   DateTime      @default(now())
+  fechaAlta   DateTime      @default(now()) @db.Timestamptz(3)
   estado      EstadoReserva @default(PENDIENTE)
-  cancelledAt DateTime?
+  cancelledAt DateTime?     @db.Timestamptz(3)
 
   // Instante en que una reserva PENDIENTE deja de ser pagable y el Turno
   // vuelve a DISPONIBLE. Es NULL en reservas ya CONFIRMADA / CANCELADA y en
   // las filas creadas antes de esta columna.
-  vencimientoAt DateTime?
+  vencimientoAt DateTime? @db.Timestamptz(3)
 
   idUsuario Int
   idTurno   Int
@@ -97,7 +97,7 @@ enum EstadoReserva {
 model Pago {
   id        Int        @id @default(autoincrement())
   monto     Decimal    @db.Decimal(10, 2)
-  fechaPago DateTime?
+  fechaPago DateTime?  @db.Timestamptz(3)
   estado    EstadoPago @default(PENDIENTE)
   metodo    MetodoPago
 
@@ -125,8 +125,8 @@ model Usuario {
   telefono     String?   @unique
   contrasena   String
   rol          RolUsuario @default(USUARIO)
-  created_at   DateTime  @default(now())
-  modified_at  DateTime  @updatedAt
+  created_at   DateTime  @default(now()) @db.Timestamptz(3)
+  modified_at  DateTime  @updatedAt @db.Timestamptz(3)
   ultimoCambio String?
   activo       Boolean   @default(true)
 
@@ -156,7 +156,7 @@ model AuditLog {
   operation   String
   performedBy Int?
   performer   Usuario? @relation("AuditLog_performer", fields: [performedBy], references: [id], onDelete: SetNull)
-  performedAt DateTime @default(now())
+  performedAt DateTime @default(now()) @db.Timestamptz(3)
   oldValues   Json?
   newValues   Json?
 

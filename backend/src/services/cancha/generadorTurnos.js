@@ -1,4 +1,5 @@
 import { prisma } from "../../config/prisma.js";  //trae la conexión a PostgreSQL
+import { fechaClave } from "../../utils/dates.js";
 
 const DIAS_A_GENERAR = 30;
 
@@ -73,15 +74,11 @@ export async function generarTurnos() {   //busca las canchas que estan activas
 
 
 function obtenerFecha(diasDesdeHoy) { //devuelve en formato fecha, la fecha de hoy mas diasDesdeHoy (parametro)
-  const hoy = new Date();
-
-  return new Date(
-    Date.UTC(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate() + diasDesdeHoy
-    )
-  );
+  // El día de Argentina, no el del servidor. `getFullYear/getMonth/getDate` son
+  // getters LOCALES: en Render (que corre en UTC) la generación arrancaba desde
+  // el día UTC, que entre las 21:00 y las 24:00 de Argentina ya es el día
+  // siguiente.
+  return fechaClave(diasDesdeHoy);
 }
 
 function crearHora(hora, minutos) { // aunque PostgreSQL guarde solo la hora, prisma admite el formato datetime completo, la fecha es una cualquera

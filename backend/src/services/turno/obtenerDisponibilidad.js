@@ -20,7 +20,10 @@ export async function obtenerDisponibilidad({ idCancha, desde, hasta } = {}) {
   }
 
   const hoy = startOfDay();
-  const maxFecha = maxReservaDate(hoy);
+  // Sin argumento: `maxReservaDate` espera un INSTANTE y `hoy` es una clave de
+  // fecha (medianoche UTC). Pasársela lo restaría un día y el rango cerraría
+  // antes de tiempo.
+  const maxFecha = maxReservaDate();
 
   // Defaults: rango completo permitido (hoy → mismo día mes siguiente)
   const desdeDate = parseFecha(desde) ?? hoy;
