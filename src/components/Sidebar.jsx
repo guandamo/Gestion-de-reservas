@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { adminItems } from './sidebarItems.js';
+import AppIcon from './AppIcon.jsx';
 
 export default function Sidebar() {
     return (
@@ -23,7 +24,7 @@ export default function Sidebar() {
                             }`
                         }
                     >
-                        <span>{item.icon}</span>
+                        <AppIcon name={item.icon} />
                         <span>{item.label}</span>
                     </NavLink>
                 ))}

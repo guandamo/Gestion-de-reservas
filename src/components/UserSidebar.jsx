@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { userItems } from './sidebarItems.js';
+import AppIcon from './AppIcon.jsx';
 
 export default function UserSidebar() {
     return (
@@ -22,7 +23,7 @@ export default function UserSidebar() {
                             }`
                         }
                     >
-                        <span>{item.icon}</span>
+                        <AppIcon name={item.icon} />
                         <span>{item.label}</span>
                     </NavLink>
                 ))}

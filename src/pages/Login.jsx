@@ -5,6 +5,7 @@ import { ApiError, NetworkError, api } from '../api/client.js';
 import { INICIO_POR_ROL, rolPuedeVer } from '../lib/rutas.js';
 import ModalVerificacionEmail from '../components/ModalVerificacionEmail.jsx';
 import ModalCambiarContrasena from '../components/ModalCambiarContrasena.jsx';
+import AppIcon from '../components/AppIcon.jsx';
 
 // --- validaciones en espejo del backend ---
 function validarNombre(v) {
@@ -38,36 +39,12 @@ function validarConfirm(v, password) {
     return null;
 }
 
-/**
- * Normaliza el email para comparación (`trim()` + `lowercase()`).
- * Coherente con el backend (ver `loginUsuario.js`, `registerUsuario.js`,
- * `emailExiste.js`).
- */
+
 function normalizarEmail(v) {
     return String(v ?? '').trim().toLowerCase();
 }
 
-/**
- * Calcula a dónde navegar tras un login exitoso.
- *
- * `from` es el path que `ProtectedRoute` guardó en `location.state` cuando
- * bloqueó la ruta por falta de sesión. El problema: ese `state` no tiene
- * nada que ver con QUIÉN se está logueando. Queda en el historial de
- * navegación y sobrevive al logout, así que un USUARIO puede llegar a
- * `/login` con `from = '/admin/canchas'` (deep link, marcador, enlace
- * compartido, o el `<a href>` que había en Reportes).
- *
- * Antes, `navigate(from)` a ciegas producía este ciclo:
- *   1. login OK -> navega a `/admin/canchas`
- *   2. `ProtectedRoute` ve rol USUARIO y rebota a `/login` SIN state
- *   3. el usuario reingresa, ahora `from` es undefined -> entra bien
- * Es decir: el primer intento se descarta y el segundo entra. Eso es
- * exactamente el síntoma reportado.
- *
- * Por eso acá sólo se honra `from` si el rol de la sesión que se acaba de
- * crear realmente puede abrir esa ruta. En cualquier otro caso se va al
- * inicio del propio rol.
- */
+
 function destinoTrasLogin(from, rol) {
     const inicio = INICIO_POR_ROL[rol] ?? '/user';
 
@@ -82,13 +59,6 @@ function destinoTrasLogin(from, rol) {
 
     return rolPuedeVer(rol, from) ? from : inicio;
 }
-
-/**
- * GET /api/auth/existe-email?email=...
- *
- * Devuelve `{ existe: boolean }`. Se usa antes de abrir el modal para
- * distinguir registro de recuperación.
- */
 async function checkEmailExiste(email, signal) {
     const params = new URLSearchParams({ email: normalizarEmail(email) });
     return api.get(`/auth/existe-email?${params.toString()}`, { signal });
@@ -98,18 +68,15 @@ export default function Login() {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [mostrarPassword, setMostrarPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // Estado del modal OTP (contexto siempre "recuperacion" en Login).
     const [modalOpen, setModalOpen] = useState(false);
     const [modalEmail, setModalEmail] = useState('');
 
-    // Estado del modal de cambio de contraseña simulado.
     const [cambioSimuladoOpen, setCambioSimuladoOpen] = useState(false);
 
-    // Loading independiente del check de existencia para no bloquear el botón
-    // "Ingresar" mientras se consulta el endpoint.
     const [checkingEmail, setCheckingEmail] = useState(false);
 
     const { login } = useAuth();
@@ -117,13 +84,8 @@ export default function Login() {
     const location = useLocation();
     const from = location.state?.from;
 
-    // Guard sincrónico: evita que dos submits rápidos (Enter repetido, doble
-    // click) disparen dos requests en vuelo. El `disabled` del botón es
-    // asíncrono (depende de un re-render), por lo que no alcanza por sí solo.
     const enCursoRef = useRef(false);
-    // AbortController del request en curso; se cancela al reenviar el form.
     const controllerRef = useRef(null);
-    // Idem para el check de existencia de email.
     const checkControllerRef = useRef(null);
 
     const handleSubmit = async (e) => {
@@ -180,8 +142,6 @@ export default function Login() {
         }
     };
 
-    // Si el componente se desmonta a mitad de un request, lo cancelamos
-    // para no actualizar estado de un componente inexistente.
     useEffect(() => {
         return () => {
             controllerRef.current?.abort();
@@ -189,38 +149,21 @@ export default function Login() {
         };
     }, []);
 
-    /**
-     * "Olvidé mi contraseña" desde el formulario de login (mobile y desktop).
-     *
-     * Distingue tres casos según lo que el usuario haya tipeado:
-     *  1. Campo vacío → mensaje "por favor, ingresá un correo para continuar."
-     *  2. Formato inválido → mensaje "el correo ingresado no tiene un formato
-     *     válido."
-     *  3. Formato OK → consulta `/api/auth/existe-email`; si existe, abre el
-     *     modal OTP en contexto "recuperacion"; si no, muestra el mensaje
-     *     correspondiente y NO abre el modal.
-     *
-     * Mientras se hace la consulta se bloquea el botón para evitar
-     * solicitudes duplicadas (Enter repetido / doble click).
-     */
+
     const handleOlvideContrasena = async () => {
         setError('');
 
-        // Caso 1: campo vacío. `validarEmail` devolvería "El email es
-        // obligatorio", pero acá queremos un mensaje específico del flujo.
         if (!email || !email.trim()) {
             setError('Por favor, ingresá un correo para continuar.');
             return;
         }
 
-        // Caso 2: formato inválido.
         const formatoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
         if (!formatoValido) {
             setError('El correo ingresado no tiene un formato válido.');
             return;
         }
 
-        // Evitar duplicar la consulta: si ya hay una en curso, ignoramos.
         if (checkControllerRef.current) {
             return;
         }
@@ -238,7 +181,6 @@ export default function Login() {
                 );
                 return;
             }
-            // Caso 3 OK: abrimos el modal OTP reutilizable.
             setModalEmail(normalizarEmail(email));
             setModalOpen(true);
         } catch (err) {
@@ -246,7 +188,7 @@ export default function Login() {
             if (err instanceof ApiError && err.status >= 400) {
                 setError(
                     err.message ||
-                        'No pudimos verificar tu correo. Intentá de nuevo en unos minutos.',
+                    'No pudimos verificar tu correo. Intentá de nuevo en unos minutos.',
                 );
             } else if (err instanceof NetworkError) {
                 setError(
@@ -264,33 +206,20 @@ export default function Login() {
             setCheckingEmail(false);
         }
     };
-
-    /**
-     * "Continuar" en el modal OTP (contexto recuperación):
-     *  - Cierra el OTP.
-     *  - Abre `ModalCambiarContrasena` en modo simulación (sin PATCH real).
-     *  - No navega a ninguna ruta.
-     */
     const handleContinuarOtpRecuperacion = () => {
         setModalOpen(false);
         setCambioSimuladoOpen(true);
     };
 
-    /**
-     * Al cerrar el modal de cambio de contraseña (botón "Volver al login",
-     * "Cancelar" o backdrop), regresamos al login.
-     *
-     * El mensaje de éxito se muestra DENTRO del propio modal de cambio de
-     * contraseña (`ModalCambiarContrasena`), no en esta pantalla.
-     */
+
     const handleCerrarCambioSimulado = () => {
+        setMostrarPassword(false);
         setCambioSimuladoOpen(false);
-        // Por seguridad visual borramos la contraseña que el usuario
-        // pudo haber tipeado pero nunca se guardó en la simulación.
         setPassword('');
     };
 
     const toggleView = () => {
+        setMostrarPassword(false);
         setIsLoginView(!isLoginView);
         setError('');
         setEmail('');
@@ -308,9 +237,9 @@ export default function Login() {
 
     return (
         <>
-            {/* ───── MOBILE (<lg): prototipo Image 4 ───── */}
+
             <div className="lg:hidden min-h-screen bg-gris-fondo flex flex-col font-sans animate-fadeIn">
-                {/* Header verde con pelota */}
+
                 <div className="bg-verde-principal px-6 pt-10 pb-14 flex flex-col items-center text-blanco rounded-b-[2.5rem] shadow-lg">
                     <div className="bg-blanco/15 p-4 rounded-full mb-5">
                         ⚽
@@ -318,7 +247,6 @@ export default function Login() {
                     <h1 className="text-2xl font-bold tracking-wide">Gestión de canchas</h1>
                 </div>
 
-                {/* Card oscura con el form */}
                 <div className="flex-1 px-5 -mt-8">
                     <div className="bg-[#222222] rounded-2xl border border-white/5 shadow-2xl p-6">
                         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -341,7 +269,7 @@ export default function Login() {
                                 />
                             </div>
 
-                            <label className="block text-sm font-medium text-gray-200">
+                            <label htmlFor="login-password-mobile" className="block text-sm font-medium text-gray-200">
                                 Contraseña
                             </label>
                             <div className="relative">
@@ -351,13 +279,15 @@ export default function Login() {
                                     </svg>
                                 </span>
                                 <input
-                                    type="password"
+                                    id="login-password-mobile"
+                                    type={mostrarPassword ? 'text' : 'password'}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     autoComplete="current-password"
-                                    className="w-full bg-white text-black rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-verde-principal border border-transparent"
+                                    className="w-full bg-white text-black rounded-lg pl-10 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-verde-principal border border-transparent"
                                 />
+                                <PasswordVisibilityButton visible={mostrarPassword} onToggle={() => setMostrarPassword((value) => !value)} inputId="login-password-mobile" />
                             </div>
 
                             <div className="flex justify-end">
@@ -395,7 +325,7 @@ export default function Login() {
                     </div>
                 </div>
 
-                {/* Footer: ¿no tenés cuenta? */}
+
                 <div className="text-center mt-6 mb-6 text-sm px-4">
                     <span className="text-gray-400">¿No tenés cuenta?</span>
                     <button
@@ -408,10 +338,10 @@ export default function Login() {
                 </div>
             </div>
 
-            {/* ───── DESKTOP (≥lg): split original intacto ───── */}
+
             <div className="hidden lg:flex min-h-screen font-sans animate-fadeIn">
 
-                {/* MITAD IZQUIERDA: Verde con Título */}
+
                 <div className="w-1/2 bg-verde-principal flex-col justify-center items-center p-12 hidden lg:flex">
                     <h1 className="text-6xl font-bold text-white mb-6 text-center leading-tight">
                         Gestión de <br /> Canchas
@@ -419,7 +349,7 @@ export default function Login() {
                     <div className="w-16 h-1 bg-white rounded"></div>
                 </div>
 
-                {/* MITAD DERECHA: Formulario Oscuro */}
+
                 <div className="w-full lg:w-1/2 bg-[#222222] flex justify-center items-center p-8">
                     <div className="w-full max-w-md">
 
@@ -428,7 +358,7 @@ export default function Login() {
 
                         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-                            {/* EMAIL */}
+
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">Correo electrónico</label>
                                 <div className="relative">
@@ -448,9 +378,9 @@ export default function Login() {
                                 </div>
                             </div>
 
-                            {/* CONTRASEÑA */}
+
                             <div>
-                                <label className="block text-sm font-medium text-white mb-2">Contraseña</label>
+                                <label htmlFor="login-password-desktop" className="block text-sm font-medium text-white mb-2">Contraseña</label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-3.5 text-gray-500">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -458,13 +388,15 @@ export default function Login() {
                                         </svg>
                                     </span>
                                     <input
-                                        type="password"
+                                        id="login-password-desktop"
+                                        type={mostrarPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
                                         autoComplete="current-password"
-                                        className="w-full bg-white text-black rounded-lg pl-10 pr-10 py-3 focus:outline-none focus:ring-2 focus:ring-verde-principal border border-transparent"
+                                        className="w-full bg-white text-black rounded-lg pl-10 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-verde-principal border border-transparent"
                                     />
+                                    <PasswordVisibilityButton visible={mostrarPassword} onToggle={() => setMostrarPassword((value) => !value)} inputId="login-password-desktop" />
                                 </div>
                             </div>
 
@@ -501,7 +433,7 @@ export default function Login() {
                             </button>
                         </form>
 
-                        {/* Toggle para cambiar entre Login y Registro */}
+
                         <div className="text-center mt-8 text-sm">
                             <span className="text-gray-400">¿No tenés cuenta?</span>
                             <button
@@ -517,7 +449,7 @@ export default function Login() {
                 </div>
             </div>
 
-            {/* Modal OTP — siempre en contexto recuperación desde Login. */}
+
             <ModalVerificacionEmail
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
@@ -526,10 +458,7 @@ export default function Login() {
                 contexto="recuperacion"
             />
 
-            {/* Modal de cambio de contraseña simulado (sin PATCH real).
-                El modal muestra el mensaje de éxito por sí solo; este
-                componente solo gestiona abrir / cerrar y limpiar la
-                contraseña escrita en el login. */}
+
             <ModalCambiarContrasena
                 open={cambioSimuladoOpen}
                 onClose={handleCerrarCambioSimulado}
@@ -539,9 +468,19 @@ export default function Login() {
     );
 }
 
-// ============================================================
-// Registro
-// ============================================================
+function PasswordVisibilityButton({ visible, onToggle, inputId }) {
+    return (
+        <button type="button" onClick={onToggle}
+            aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            aria-controls={inputId} aria-pressed={visible}
+            title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition hover:text-verde-principal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-verde-principal">
+            <AppIcon name={visible ? 'eye-off' : 'eye'} />
+        </button>
+    );
+}
+
+
 function RegisterView({ onSwitchToLogin, navigate }) {
     const [nombre, setNombre] = useState('');
     const [apellido, setApellido] = useState('');
@@ -571,18 +510,12 @@ function RegisterView({ onSwitchToLogin, navigate }) {
         return Object.values(next).every((e) => !e);
     };
 
-    /**
-     * Validar el form, consultar si el email ya existe y, si NO existe,
-     * abrir el modal OTP. La cuenta se crea recién cuando el usuario
-     * confirma el código simulado (ver `handleContinuarModal`).
-     */
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setServerError('');
         if (!validarTodo()) return;
 
-        // Anti-duplicado: si ya hay una consulta en vuelo, ignoramos el
-        // segundo submit (Enter repetido / doble click).
         if (checkControllerRef.current) {
             return;
         }
@@ -611,7 +544,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
             } else if (err instanceof ApiError && err.status >= 400) {
                 setServerError(
                     err.message ||
-                        'No pudimos validar el formulario. Intentá de nuevo en unos minutos.',
+                    'No pudimos validar el formulario. Intentá de nuevo en unos minutos.',
                 );
             } else {
                 setServerError(
@@ -625,15 +558,6 @@ function RegisterView({ onSwitchToLogin, navigate }) {
             }
         }
     };
-
-    /**
-     * Confirmación del código OTP (simulado): crea la cuenta real y deja la
-     * sesión iniciada. La pantalla final del flujo es `/user/reservar` para
-     * que el usuario siga su intención original.
-     *
-     * Si la petición al backend falla, el modal queda abierto mostrando el
-     * motivo: el usuario puede intentar de nuevo o cancelar.
-     */
     const handleContinuarModal = async () => {
         if (registerControllerRef.current) return;
 
@@ -657,8 +581,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
 
             if (controller.signal.aborted) return;
 
-            // Persistimos y navegamos al destino según el rol. Por
-            // construcción el registro siempre crea USUARIO.
+
             const destino =
                 usuario.rol === 'ADMIN' ? '/admin' : '/user/reservar';
             navigate(destino, { replace: true });
@@ -675,12 +598,12 @@ function RegisterView({ onSwitchToLogin, navigate }) {
             } else if (err instanceof ApiError && err.status >= 400) {
                 setModalError(
                     err.message ||
-                        'No pudimos crear tu cuenta. Revisá los datos e intentá de nuevo.',
+                    'No pudimos crear tu cuenta. Revisá los datos e intentá de nuevo.',
                 );
             } else {
                 setModalError(
                     err?.message ||
-                        'No pudimos crear tu cuenta. Intentá de nuevo en unos minutos.',
+                    'No pudimos crear tu cuenta. Intentá de nuevo en unos minutos.',
                 );
             }
         } finally {
@@ -692,7 +615,6 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     };
 
     const handleCerrarModal = () => {
-        // Si había una creación en curso, la cancelamos.
         registerControllerRef.current?.abort();
         registerControllerRef.current = null;
         setModalError('');
@@ -708,7 +630,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
         [],
     );
 
-    // Para que el botón se habilite solo cuando no hay errores visibles
+
     const hayErroresVisibles =
         !!errors.nombre ||
         !!errors.apellido ||
@@ -718,9 +640,9 @@ function RegisterView({ onSwitchToLogin, navigate }) {
 
     return (
         <>
-            {/* ───── MOBILE (<lg): prototipo Image 4 (registro) ───── */}
+
             <div className="lg:hidden min-h-screen bg-gris-fondo flex flex-col font-sans animate-fadeIn">
-                {/* Header verde con pelota */}
+
                 <div className="bg-verde-principal px-6 pt-10 pb-14 flex flex-col items-center text-blanco rounded-b-[2.5rem] shadow-lg">
                     <div className="bg-blanco/15 p-4 rounded-full mb-5">⚽</div>
                     <h1 className="text-2xl font-bold tracking-wide">Creá tu cuenta</h1>
@@ -761,9 +683,9 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                 </div>
             </div>
 
-            {/* ───── DESKTOP (≥lg): split original intacto ───── */}
+
             <div className="hidden lg:flex min-h-screen font-sans animate-fadeIn">
-                {/* MITAD IZQUIERDA */}
+
                 <div className="w-1/2 bg-verde-principal flex-col justify-center items-center p-12 hidden lg:flex">
                     <h1 className="text-6xl font-bold text-white mb-6 text-center leading-tight">
                         Creá tu <br /> cuenta
@@ -771,7 +693,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                     <div className="w-16 h-1 bg-white rounded"></div>
                 </div>
 
-                {/* MITAD DERECHA */}
+
                 <div className="w-full lg:w-1/2 bg-[#222222] flex justify-center items-center p-8">
                     <div className="w-full max-w-md">
                         <h2 className="text-4xl font-bold text-white mb-2">Crear Cuenta</h2>
@@ -850,11 +772,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                 </div>
             </div>
 
-            {/* Modal OTP (contexto registro). El modal es visual: el código
-                simulado dispara handleContinuarModal, que es el que llama a
-                POST /api/auth/register y guarda la sesión. Si falla, el modal
-                queda abierto mostrando el error hasta que el usuario cancele
-                o reintente. */}
+
             <ModalVerificacionEmail
                 open={modalOpen}
                 onClose={handleCerrarModal}
@@ -868,7 +786,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     );
 }
 
-// Campo de texto con estilo mobile-first (input blanco/negro sobre card oscura)
+
 function CampoTextoMobile({ label, value, onChange, error, type = 'text', placeholder, autoComplete }) {
     return (
         <div>
@@ -879,11 +797,10 @@ function CampoTextoMobile({ label, value, onChange, error, type = 'text', placeh
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
                 autoComplete={autoComplete}
-                className={`w-full bg-white text-black rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 border ${
-                    error
+                className={`w-full bg-white text-black rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 border ${error
                         ? 'border-red-500 focus:ring-red-500'
                         : 'border-transparent focus:ring-verde-principal'
-                }`}
+                    }`}
             />
             {error && (
                 <p className="text-red-300 text-xs mt-1">{error}</p>
@@ -892,7 +809,7 @@ function CampoTextoMobile({ label, value, onChange, error, type = 'text', placeh
     );
 }
 
-// Campo de texto reutilizable, con ícono y mensaje de error debajo (DESKTOP)
+
 function CampoTexto({ label, value, onChange, error, type = 'text', placeholder, autoComplete }) {
     return (
         <div>
@@ -903,11 +820,10 @@ function CampoTexto({ label, value, onChange, error, type = 'text', placeholder,
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
                 autoComplete={autoComplete}
-                className={`w-full bg-white text-black rounded-lg px-4 py-3 focus:outline-none focus:ring-2 border ${
-                    error
+                className={`w-full bg-white text-black rounded-lg px-4 py-3 focus:outline-none focus:ring-2 border ${error
                         ? 'border-red-500 focus:ring-red-500'
                         : 'border-transparent focus:ring-verde-principal'
-                }`}
+                    }`}
             />
             {error && (
                 <p className="text-red-400 text-xs mt-1">{error}</p>

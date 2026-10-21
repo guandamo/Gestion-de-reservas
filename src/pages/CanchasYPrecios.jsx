@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
 import GlideSelect from '../components/GlideSelect.jsx';
+import AppIcon from '../components/AppIcon.jsx';
 
 const formVacio = {
     nombre: '',
@@ -17,7 +18,7 @@ export default function CanchasYPrecios() {
     const [mostrarForm, setMostrarForm] = useState(false);
     const [editandoId, setEditandoId] = useState(null);
     const [form, setForm] = useState(formVacio);
-    // Horario con el que se abrió el formulario, para no mandarlo si no cambió.
+
     const [horarioOriginal, setHorarioOriginal] = useState({ horaInicio: '', horaFin: '' });
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState('');
@@ -123,13 +124,7 @@ export default function CanchasYPrecios() {
             return;
         }
 
-        // El backend regenera los 30 días de turnos cada vez que recibe
-        // `horaInicio` o `horaFin`, aunque no hayan cambiado (eso lo dispara
-        // `cambiaHorario` en editarCancha.js). Si el usuario sólo renombra la
-        // cancha o le cambia el precio, mandar las horas borra y recrea todos
-        // los turnos futuros sin motivo, y hasta puede chocar con un turno ya
-        // reservado. Por eso en una EDICIÓN sólo se envían cuando realmente
-        // cambiaron; en el alta siempre hacen falta.
+
         const cambiaHorario =
             !editandoId ||
             form.horaInicio !== horarioOriginal.horaInicio ||
@@ -166,9 +161,7 @@ export default function CanchasYPrecios() {
             return;
         }
         try {
-            // Dar de baja no necesita el horario: mandarlo provocaría la
-            // regeneración de turnos y el chequeo de conflicto con los
-            // reservados, que puede bloquear la baja con un 409.
+
             await api.patch(`/courts/${cancha.id}`, {
                 nombre: cancha.nombre,
                 idTipoCancha: cancha.idTipoCancha,
@@ -181,11 +174,7 @@ export default function CanchasYPrecios() {
         }
     };
 
-    /**
-     * Clases de input/select mobile-first:
-     *  - mobile: bg-[#171717] text-blanco border-white/10 (dark, encaja con el card)
-     *  - desktop (≥sm): mantiene el estilo claro original (legado, ya validado por usuarios)
-     */
+
     const inputBase =
         'w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-verde-principal bg-[#171717] text-blanco border border-white/10 sm:bg-white sm:text-black sm:border-transparent';
     const labelBase = 'block text-xs text-gray-400 mb-1';
@@ -342,12 +331,11 @@ export default function CanchasYPrecios() {
                                 key={cancha.id}
                                 className="bg-[#222222] rounded-xl border border-white/5 px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                             >
-                                {/* Bloque principal: nombre + meta */}
+
                                 <div className="flex items-start sm:items-center gap-3 min-w-0">
                                     <span
-                                        className={`mt-1.5 sm:mt-0 w-2.5 h-2.5 rounded-full shrink-0 ${
-                                            cancha.activa ? 'bg-green-500' : 'bg-gray-500'
-                                        }`}
+                                        className={`mt-1.5 sm:mt-0 w-2.5 h-2.5 rounded-full shrink-0 ${cancha.activa ? 'bg-green-500' : 'bg-gray-500'
+                                            }`}
                                     />
                                     <div className="min-w-0">
                                         <p className="text-blanco font-medium truncate">
@@ -360,7 +348,7 @@ export default function CanchasYPrecios() {
                                     </div>
                                 </div>
 
-                                {/* Bloque secundario: precio + horario + acciones */}
+
                                 <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 pl-5 sm:pl-0">
                                     <div className="flex items-center gap-5 sm:gap-8">
                                         <div className="text-left sm:text-right">
@@ -380,18 +368,18 @@ export default function CanchasYPrecios() {
                                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                                         <button
                                             onClick={() => abrirEditar(cancha)}
-                                            className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-verde-claro transition"
+                                            className="w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-verde-claro transition"
                                             aria-label={`Editar ${cancha.nombre}`}
                                         >
-                                            ✏️
+                                            <AppIcon name="pencil" />
                                         </button>
                                         <button
                                             onClick={() => handleEliminar(cancha)}
-                                            className="w-9 h-9 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition"
+                                            className="w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition"
                                             aria-label={`Dar de baja ${cancha.nombre}`}
                                             title="Baja lógica (soft-delete)"
                                         >
-                                            🗑️
+                                            <AppIcon name="trash" />
                                         </button>
                                     </div>
                                 </div>
@@ -462,22 +450,12 @@ export default function CanchasYPrecios() {
     );
 }
 
-// Convierte a "HH:MM" lo que manda el backend, un Date, o un "HH:MM:SS".
-//
-// El backend devuelve `horaInicio` / `horaFin` como ISO completo
-// ("1970-01-01T08:30:00.000Z"), porque en Prisma son columnas `@db.Time`.
-// Antes sólo se aceptaba un string que YA empiece con "HH:MM", así que con la
-// respuesta de la API el match fallaba y la función devolvía "". Eso dejaba el
-// listado sin horario y el formulario de edición con los dos campos vacíos:
-// guardar sin recargar a mano las horas mandaba "" y el backend respondía
-// 400 "El formato del horario no es válido".
+
 function toHora(value) {
     if (!value) return '';
     if (typeof value === 'string') {
-        // ISO: "1970-01-01T08:30:00.000Z"
         const iso = value.match(/T(\d{2}:\d{2})/);
         if (iso) return iso[1];
-        // "08:30:00" o "08:30"
         const simple = value.match(/^(\d{2}:\d{2})/);
         return simple ? simple[1] : '';
     }
@@ -486,7 +464,7 @@ function toHora(value) {
         const mm = String(value.getUTCMinutes()).padStart(2, '0');
         return `${hh}:${mm}`;
     }
-    // Si vino como ISO
+
     try {
         const d = new Date(value);
         return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
