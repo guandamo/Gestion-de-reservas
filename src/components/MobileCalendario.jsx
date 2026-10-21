@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client.js';
 import StatusPill from './StatusPill.jsx';
 import GlideSelect from './GlideSelect.jsx';
+import AppIcon from './AppIcon.jsx';
 import {
     generarHorarios,
     formatearDiaLargo,
@@ -216,7 +217,7 @@ export default function MobileCalendario({
                 <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-white/5">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="text-verde-claro text-base shrink-0" aria-hidden="true">
-                            📅
+                            <AppIcon name="calendar-days" />
                         </span>
                         <h3 className="text-blanco font-semibold text-base truncate">
                             Disponibilidad diaria

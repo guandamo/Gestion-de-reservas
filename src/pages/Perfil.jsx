@@ -50,7 +50,8 @@ export default function Perfil() {
         setGuardandoPerfil(true);
 
         try {
-            const data = await api.patch('/auth/me', perfil);
+            const { nombre, apellido, telefono } = perfil;
+            const data = await api.patch('/auth/me', { nombre, apellido, telefono });
             setPerfil({
                 nombre: data.usuario.nombre ?? '',
                 apellido: data.usuario.apellido ?? '',
@@ -97,7 +98,7 @@ export default function Perfil() {
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
                     <Field label="Nombre" name="nombre" value={perfil.nombre} onChange={handlePerfilChange} required />
                     <Field label="Apellido" name="apellido" value={perfil.apellido} onChange={handlePerfilChange} required />
-                    <Field label="Correo electrónico" name="email" type="email" value={perfil.email} onChange={handlePerfilChange} required />
+                    <Field label="Correo electrónico" name="email" type="email" value={perfil.email} readOnly hint="El correo electrónico no se puede modificar." />
                     <Field label="Teléfono" name="telefono" type="tel" value={perfil.telefono} onChange={handlePerfilChange} placeholder="Ej.: +5492211234567" />
                 </div>
 
@@ -117,16 +118,18 @@ export default function Perfil() {
     );
 }
 
-function Field({ label, name, type = 'text', ...props }) {
+function Field({ label, name, type = 'text', hint, ...props }) {
     return (
         <label className="flex flex-col gap-1.5 text-sm font-medium text-gray-200">
             {label}
             <input
                 name={name}
                 type={type}
-                className="rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-blanco outline-none transition focus:border-verde-claro"
+                aria-describedby={hint ? `${name}-hint` : undefined}
+                className="rounded-lg border border-white/10 bg-[#171717] px-3 py-2 text-blanco outline-none transition focus:border-verde-claro read-only:bg-white/5 read-only:text-gray-400"
                 {...props}
             />
+            {hint && <span id={`${name}-hint`} className="text-xs font-normal text-gray-400">{hint}</span>}
         </label>
     );
 }

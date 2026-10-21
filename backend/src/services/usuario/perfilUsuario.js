@@ -29,6 +29,10 @@ export async function actualizarPerfil(idUsuario, input = {}) {
   });
   if (!usuarioActual) throw new HttpError(404, "Usuario no encontrado.");
 
+  if (Object.hasOwn(input, "email") && input.email !== usuarioActual.email) {
+    throw new HttpError(400, "El correo electrónico no se puede modificar desde el perfil.");
+  }
+
   const data = {};
 
   if (Object.hasOwn(input, "nombre")) {
@@ -37,20 +41,12 @@ export async function actualizarPerfil(idUsuario, input = {}) {
   if (Object.hasOwn(input, "apellido")) {
     data.apellido = validarNombre(input.apellido, "El apellido");
   }
-  if (Object.hasOwn(input, "email")) {
-    data.email = validarEmail(input.email);
-  }
   if (Object.hasOwn(input, "telefono")) {
     data.telefono = validarTelefono(input.telefono);
   }
 
   if (Object.keys(data).length === 0) {
     throw new HttpError(400, "Ingresá al menos un dato para actualizar.");
-  }
-
-  if (data.email && data.email !== usuarioActual.email) {
-    const existente = await prisma.usuario.findUnique({ where: { email: data.email } });
-    if (existente) throw new HttpError(409, "Ya existe una cuenta con ese correo electrónico.");
   }
 
   if (data.telefono && data.telefono !== usuarioActual.telefono) {
@@ -142,17 +138,6 @@ function validarNombre(valor, etiqueta) {
     throw new HttpError(400, `${etiqueta} debe tener entre 2 y 50 caracteres.`);
   }
   return limpio;
-}
-
-function validarEmail(valor) {
-  if (typeof valor !== "string" || !valor.trim()) {
-    throw new HttpError(400, "El email es obligatorio.");
-  }
-  const email = valor.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new HttpError(400, "El email no tiene un formato válido.");
-  }
-  return email;
 }
 
 function validarTelefono(valor) {
