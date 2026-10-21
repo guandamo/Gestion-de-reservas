@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
-import { api, tokenStore } from "../api/client.js";
+import { api, tokenStore, ApiError } from "../api/client.js";
 
 const AuthContext = createContext(null);
 
@@ -15,11 +15,12 @@ export function AuthProvider({ children }) {
             return null;
         }
     });
-    const [ready, setReady] = useState(true);
-
-    useEffect(() => {
-        setReady(true);
-    }, []);
+    // `ready` se mantiene en el contexto por compatibilidad con la forma
+    // anterior del provider, pero nunca se consumió: la validación de sesión
+    // es en segundo plano y no frena el render. Por eso es una constante y no
+    // estado (antes era un `useState` con un efecto que sólo hacía
+    // `setReady(true)`, o sea un no-op).
+    const ready = true;
 
     /**
      * Helper interno: persiste token y usuario en localStorage y estado.
@@ -57,6 +58,71 @@ export function AuthProvider({ children }) {
         setToken(null);
         setUser(null);
     }, []);
+
+    /**
+     * Valida la sesión guardada contra el backend al montar.
+     *
+     * El JWT dura 1 hora (`loginUsuario.js`, `expiresIn: "1h"`), pero el
+     * usuario en localStorage se restauraba sin verificar nunca. Con eso, un
+     * token vencido dejaba la app "logueada": las páginas protegidas se veían
+     * bien y sólo fallaban al pedir datos, con un 401 por request mostrado
+     * como texto en línea. El usuario no se enteraba de que su sesión había
+     * muerto hasta la recarga siguiente.
+     *
+     * Además armaba el rebote del login: la navegación dura de documento
+     * re-bootstrapaba el provider desde localStorage, y al eventual rebote
+     * el `state.from` quedaba poblado.
+     *
+     * Reglas:
+     *  - Sólo se limpia la sesión ante un 401 explícito del backend. Un
+     *    error de red o un 5xx NO desloguean: si el servidor está caído, que
+     *    el usuario siga como estaba y reintente.
+     *  - No bloquea el render: se valida en segundo plano. `ready` queda en
+     *    `true` siempre, como antes.
+     *  - Si mientras validaba el usuario hace login de nuevo, el `usuario`
+     *    devuelto puede ser de otra cuenta: se descarta con el flag de
+     *    cancelación.
+     */
+    useEffect(() => {
+        if (!tokenStore.get()) return;
+
+        const controller = new AbortController();
+        let vigente = true;
+
+        (async () => {
+            try {
+                const { usuario } = await api.get("/auth/me", {
+                    signal: controller.signal,
+                });
+                if (!vigente || !usuario) return;
+
+                // Si en el medio el usuario hizo logout, `tokenStore` está
+                // vacío: no se debe resucitar la sesión con este `/auth/me`.
+                const tokenActual = tokenStore.get();
+                if (!tokenActual) return;
+
+                // El perfil guardado puede tener campos viejos (rol, nombre,
+                // estado de suspensión): se refresca desde la fuente.
+                persistSession(tokenActual, usuario);
+            } catch (err) {
+                if (!vigente || err?.name === "AbortError") return;
+
+                if (err instanceof ApiError && err.status === 401) {
+                    tokenStore.clear();
+                    localStorage.removeItem(USER_KEY);
+                    setToken(null);
+                    setUser(null);
+                }
+                // Cualquier otro error (red caída, 5xx) se ignora a propósito:
+                // no se tira la sesión de un usuario por un problema de red.
+            }
+        })();
+
+        return () => {
+            vigente = false;
+            controller.abort();
+        };
+    }, [persistSession]);
 
     const updateUser = useCallback((userValue) => {
         if (!token) return;

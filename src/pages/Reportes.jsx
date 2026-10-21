@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import MobileKpiCard from '../components/MobileKpiCard.jsx';
 import StatusPill from '../components/StatusPill.jsx';
@@ -396,7 +397,14 @@ function HistorialReservasMobile() {
         <div className="bg-[#222222] border border-white/5 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
                 <h3 className="text-blanco font-semibold text-sm">Historial de reservas</h3>
-                <a href="/admin/reservas" className="text-xs text-verde-claro font-medium">Ver todas</a>
+                {/* Antes era un <a href>, la única navegación de documento duro
+                    de toda la app. Eso destruye y reconstruye el árbol entero y
+                    vuelve a bootstrapar el AuthProvider sólo desde localStorage:
+                    si el JWT de 1 h ya venció, la app entra igual "logueada",
+                    muestra páginas protegidas que fallan con 401, y el estado
+                    `from` queda armado para el rebote del login. Un <Link>
+                    navega sin recargar. */}
+                <Link to="/admin/reservas" className="text-xs text-verde-claro font-medium">Ver todas</Link>
             </div>
             <ul className="divide-y divide-white/5">
                 {items.map((r) => {

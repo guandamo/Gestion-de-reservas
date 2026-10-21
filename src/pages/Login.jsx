@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ApiError, NetworkError, api } from '../api/client.js';
+import { INICIO_POR_ROL, rolPuedeVer } from '../lib/rutas.js';
 import ModalVerificacionEmail from '../components/ModalVerificacionEmail.jsx';
 import ModalCambiarContrasena from '../components/ModalCambiarContrasena.jsx';
 
@@ -44,6 +45,42 @@ function validarConfirm(v, password) {
  */
 function normalizarEmail(v) {
     return String(v ?? '').trim().toLowerCase();
+}
+
+/**
+ * Calcula a dónde navegar tras un login exitoso.
+ *
+ * `from` es el path que `ProtectedRoute` guardó en `location.state` cuando
+ * bloqueó la ruta por falta de sesión. El problema: ese `state` no tiene
+ * nada que ver con QUIÉN se está logueando. Queda en el historial de
+ * navegación y sobrevive al logout, así que un USUARIO puede llegar a
+ * `/login` con `from = '/admin/canchas'` (deep link, marcador, enlace
+ * compartido, o el `<a href>` que había en Reportes).
+ *
+ * Antes, `navigate(from)` a ciegas producía este ciclo:
+ *   1. login OK -> navega a `/admin/canchas`
+ *   2. `ProtectedRoute` ve rol USUARIO y rebota a `/login` SIN state
+ *   3. el usuario reingresa, ahora `from` es undefined -> entra bien
+ * Es decir: el primer intento se descarta y el segundo entra. Eso es
+ * exactamente el síntoma reportado.
+ *
+ * Por eso acá sólo se honra `from` si el rol de la sesión que se acaba de
+ * crear realmente puede abrir esa ruta. En cualquier otro caso se va al
+ * inicio del propio rol.
+ */
+function destinoTrasLogin(from, rol) {
+    const inicio = INICIO_POR_ROL[rol] ?? '/user';
+
+    if (
+        typeof from !== 'string' ||
+        from === '' ||
+        from === '/login' ||
+        from === '/'
+    ) {
+        return inicio;
+    }
+
+    return rolPuedeVer(rol, from) ? from : inicio;
 }
 
 /**
@@ -114,12 +151,7 @@ export default function Login() {
                 signal: controller.signal,
             });
 
-            const destino =
-                from && from !== '/login'
-                    ? from
-                    : user.rol === 'ADMIN'
-                        ? '/admin'
-                        : '/user';
+            const destino = destinoTrasLogin(from, user.rol);
             navigate(destino, { replace: true });
         } catch (err) {
             if (err?.name === 'AbortError') {

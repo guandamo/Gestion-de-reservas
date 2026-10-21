@@ -44,3 +44,19 @@ export const MAX_RESERVAS_POR_TANDA = leerNumero(
   200,
   1,
 );
+
+/**
+ * Cada cuánto se regeneran los turnos de las canchas activas.
+ * Default: 6 horas.
+ *
+ * `generarTurnosParaCancha` siempre crea 30 días hacia adelante. Sin una
+ * pasada periódica, una cancha deja de tener turnos disponibles a los 30 días
+ * de crearse (o de la última vez que se editó su horario) y desaparece del
+ * calendario. El `createMany` usa `skipDuplicates`, así que repetir la pasada
+ * es idempotente.
+ */
+export const INTERVALO_TURNOS_MS = leerNumero(
+  "TURNO_GENERATION_INTERVAL_MS",
+  6 * 60 * 60 * 1000,
+  60 * 1000,
+);

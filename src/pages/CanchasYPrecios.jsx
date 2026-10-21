@@ -17,6 +17,8 @@ export default function CanchasYPrecios() {
     const [mostrarForm, setMostrarForm] = useState(false);
     const [editandoId, setEditandoId] = useState(null);
     const [form, setForm] = useState(formVacio);
+    // Horario con el que se abrió el formulario, para no mandarlo si no cambió.
+    const [horarioOriginal, setHorarioOriginal] = useState({ horaInicio: '', horaFin: '' });
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState('');
     const [guardando, setGuardando] = useState(false);
@@ -53,17 +55,22 @@ export default function CanchasYPrecios() {
     const abrirNueva = () => {
         setEditandoId(null);
         setForm(formVacio);
+        setHorarioOriginal({ horaInicio: '', horaFin: '' });
         setMostrarForm(true);
     };
 
     const abrirEditar = (cancha) => {
         setEditandoId(cancha.id);
+        const horario = {
+            horaInicio: toHora(cancha.horaInicio),
+            horaFin: toHora(cancha.horaFin),
+        };
+        setHorarioOriginal(horario);
         setForm({
             nombre: cancha.nombre,
             idTipoCancha: String(cancha.idTipoCancha),
             precioTurno: Number(cancha.precioTurno),
-            horaInicio: toHora(cancha.horaInicio),
-            horaFin: toHora(cancha.horaFin),
+            ...horario,
             activa: cancha.activa,
         });
         setMostrarForm(true);
@@ -73,6 +80,7 @@ export default function CanchasYPrecios() {
         setMostrarForm(false);
         setEditandoId(null);
         setForm(formVacio);
+        setHorarioOriginal({ horaInicio: '', horaFin: '' });
     };
 
     const handleCrearTipo = async (e) => {
@@ -115,13 +123,26 @@ export default function CanchasYPrecios() {
             return;
         }
 
+        // El backend regenera los 30 días de turnos cada vez que recibe
+        // `horaInicio` o `horaFin`, aunque no hayan cambiado (eso lo dispara
+        // `cambiaHorario` en editarCancha.js). Si el usuario sólo renombra la
+        // cancha o le cambia el precio, mandar las horas borra y recrea todos
+        // los turnos futuros sin motivo, y hasta puede chocar con un turno ya
+        // reservado. Por eso en una EDICIÓN sólo se envían cuando realmente
+        // cambiaron; en el alta siempre hacen falta.
+        const cambiaHorario =
+            !editandoId ||
+            form.horaInicio !== horarioOriginal.horaInicio ||
+            form.horaFin !== horarioOriginal.horaFin;
+
         const payload = {
             nombre: form.nombre,
             idTipoCancha: Number(form.idTipoCancha),
             precioTurno: Number(form.precioTurno),
-            horaInicio: form.horaInicio,
-            horaFin: form.horaFin,
             activa: form.activa,
+            ...(cambiaHorario
+                ? { horaInicio: form.horaInicio, horaFin: form.horaFin }
+                : {}),
         };
 
         try {
@@ -145,12 +166,13 @@ export default function CanchasYPrecios() {
             return;
         }
         try {
+            // Dar de baja no necesita el horario: mandarlo provocaría la
+            // regeneración de turnos y el chequeo de conflicto con los
+            // reservados, que puede bloquear la baja con un 409.
             await api.patch(`/courts/${cancha.id}`, {
                 nombre: cancha.nombre,
                 idTipoCancha: cancha.idTipoCancha,
                 precioTurno: Number(cancha.precioTurno),
-                horaInicio: toHora(cancha.horaInicio),
-                horaFin: toHora(cancha.horaFin),
                 activa: false,
             });
             await cargar();
@@ -440,12 +462,24 @@ export default function CanchasYPrecios() {
     );
 }
 
-// Convierte "HH:MM:SS" o Date a "HH:MM"
+// Convierte a "HH:MM" lo que manda el backend, un Date, o un "HH:MM:SS".
+//
+// El backend devuelve `horaInicio` / `horaFin` como ISO completo
+// ("1970-01-01T08:30:00.000Z"), porque en Prisma son columnas `@db.Time`.
+// Antes sólo se aceptaba un string que YA empiece con "HH:MM", así que con la
+// respuesta de la API el match fallaba y la función devolvía "". Eso dejaba el
+// listado sin horario y el formulario de edición con los dos campos vacíos:
+// guardar sin recargar a mano las horas mandaba "" y el backend respondía
+// 400 "El formato del horario no es válido".
 function toHora(value) {
     if (!value) return '';
     if (typeof value === 'string') {
-        const m = value.match(/^(\d{2}:\d{2})/);
-        return m ? m[1] : '';
+        // ISO: "1970-01-01T08:30:00.000Z"
+        const iso = value.match(/T(\d{2}:\d{2})/);
+        if (iso) return iso[1];
+        // "08:30:00" o "08:30"
+        const simple = value.match(/^(\d{2}:\d{2})/);
+        return simple ? simple[1] : '';
     }
     if (value instanceof Date) {
         const hh = String(value.getUTCHours()).padStart(2, '0');

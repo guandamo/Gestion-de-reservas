@@ -1,10 +1,13 @@
-import { INTERVALO_SWEEP_MS } from "../config/expiracion.js";
+import { INTERVALO_SWEEP_MS, INTERVALO_TURNOS_MS } from "../config/expiracion.js";
 import { expirarReservasPendientes } from "../services/reserva/expirarReservasPendientes.js";
+import { generarTurnos } from "../services/cancha/generadorTurnos.js";
 
 /**
  * Scheduler del backend.
  *
- * Por ahora corre un único trabajo: el barrido de reservas vencidas.
+ * Corre dos trabajos:
+ *  1. Barrido de reservas vencidas (cada ~30 s).
+ *  2. Regeneración de los turnos de las canchas activas (cada ~6 h).
  *
  * Decisiones importantes:
  *  - El estado vive en la base (no en memoria ni en timers del cliente), así
@@ -12,12 +15,14 @@ import { expirarReservasPendientes } from "../services/reserva/expirarReservasPe
  *    pasada inmediata que recupera lo que venció durante el corte.
  *  - `setInterval` + `unref()` para que el timer no mantenga vivo el proceso.
  *  - Flag `enCurso` para que una tanda lenta no se solape con la siguiente.
- *  - Todo error se captura y se registra: un fallo del barrido nunca debe
+ *  - Todo error se captura y se registra: un fallo de una pasada nunca debe
  *    tumbar el servidor de API.
  */
 
 let timer = null;
+let timerTurnos = null;
 let enCurso = false;
+let enCursoTurnos = false;
 
 async function ejecutarSweep() {
   if (enCurso) return;
@@ -42,26 +47,59 @@ async function ejecutarSweep() {
   }
 }
 
+/**
+ * Genera los turnos faltantes de todas las canchas activas.
+ *
+ * `generarTurnosParaCancha` crea los 30 días siguientes y usa
+ * `createMany({ skipDuplicates: true })`, así que correrla de más no duplica
+ * nada ni pisa los turnos RESERVADO (los saltea por solapamiento).
+ */
+async function ejecutarTurnos() {
+  if (enCursoTurnos) return;
+
+  enCursoTurnos = true;
+
+  try {
+    await generarTurnos();
+  } catch (error) {
+    console.error("[turnos] Falló la regeneración de turnos", {
+      mensaje: error?.message,
+    });
+  } finally {
+    enCursoTurnos = false;
+  }
+}
+
 export function iniciarJobs() {
   if (timer) return;
 
   // Pasada inmediata al arrancar: recupera lo que quedó pendiente durante un
   // reinicio o caída previa del backend.
   void ejecutarSweep();
+  void ejecutarTurnos();
 
   timer = setInterval(() => void ejecutarSweep(), INTERVALO_SWEEP_MS);
   timer.unref?.();
 
+  timerTurnos = setInterval(() => void ejecutarTurnos(), INTERVALO_TURNOS_MS);
+  timerTurnos.unref?.();
+
   console.info(
     `[jobs] Barrido de reservas vencidas activo (cada ${Math.round(
       INTERVALO_SWEEP_MS / 1000,
-    )}s)`,
+    )}s) y regeneración de turnos activa (cada ${Math.round(
+      INTERVALO_TURNOS_MS / 60000,
+    )} min)`,
   );
 }
 
 export function detenerJobs() {
-  if (!timer) return;
-
-  clearInterval(timer);
-  timer = null;
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (timerTurnos) {
+    clearInterval(timerTurnos);
+    timerTurnos = null;
+  }
 }
