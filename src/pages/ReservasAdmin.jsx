@@ -53,18 +53,7 @@ export default function ReservasAdmin() {
      * descubra después.
      */
     async function handleCancelar(r) {
-        const nombre = r.usuario ? `${r.usuario.nombre} ${r.usuario.apellido}` : 'el usuario';
         const pagada = r.estado === 'CONFIRMADA';
-
-        const confirmacion = pagada
-            ? `La reserva #${r.id} de ${nombre} ya está PAGADA.\n\n` +
-              `Si la cancelás, el turno vuelve a estar disponible y el pago queda ` +
-              `registrado como cobrado.\n\n` +
-              `NO se devuelve la plata automáticamente: el reembolso hay que ` +
-              `gestionarlo a mano con el usuario.\n\n¿Cancelar igual?`
-            : `¿Cancelar la reserva #${r.id} de ${nombre}?\n\nEl turno vuelve a estar disponible.`;
-
-        if (!window.confirm(confirmacion)) return;
 
         try {
             setCancelandoId(r.id);
