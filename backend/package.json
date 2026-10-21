@@ -5,8 +5,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "postinstall": "prisma generate --config=prisma7.config.ts",
     "prisma:generate": "prisma generate --config=prisma7.config.ts",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
     "seed": "node prisma/seed.js"
   },
   "prisma": {
@@ -16,6 +18,9 @@
   "author": "",
   "license": "ISC",
   "description": "API REST para Gestión de Reservas de Canchas",
+  "engines": {
+    "node": ">=20.19.0 <23"
+  },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",

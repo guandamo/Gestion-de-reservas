@@ -1,0 +1,66 @@
+# Configuración declarativa para Render.
+#
+# IMPORTANTE: este archivo Documenta la configuración esperada. NO se aplica
+# automáticamente (Render solo lo lee si se sube con `render blueprint`, lo
+# cual aún no hicimos). Servirá también como guía de qué chequear contra el
+# Dashboard.
+#
+# Cambiá los nombres `<web-service>` y `<static-site>` (o eliminá los
+# placeholders) por los reales después de crear los servicios a mano.
+services:
+  - type: web
+    name: gestion-de-reservas-api
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        sync: false           # sensible, establecer a mano en el Dashboard
+      - key: DATABASE_URL
+        sync: false           # cadena de conexión de Supabase, pegar a mano
+      - key: DIRECT_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://gestion-de-reservas.onrender.com
+      - key: FRONTEND_URL
+        value: https://gestion-de-reservas.onrender.com
+      - key: MP_ACCESS_TOKEN
+        sync: false           # access token de MP, pegar a mano
+      - key: MP_COLLECTOR_ID
+        sync: false           # ID de cuenta de MP, pegar a mano
+      - key: MP_NOTIFICATION_URL
+        value: https://gestion-de-reservas-api.onrender.com/api/payments/webhook
+      # Opcionales — si se setean vacíos, se derivan de FRONTEND_URL:
+      - key: MP_RETURN_URL_SUCCESS
+        value: ''
+      - key: MP_RETURN_URL_PENDING
+        value: ''
+      - key: MP_RETURN_URL_FAILURE
+        value: ''
+      - key: RESERVATION_EXPIRATION_MS
+        value: '180000'
+      - key: RESERVATION_SWEEP_INTERVAL_MS
+        value: '30000'
+
+  - type: static
+    name: gestion-de-reservas-web
+    runtime: static
+    plan: starter
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    # Variables de build: VITE_API_URL se incrusta en el bundle en vite build.
+    envVars:
+      - key: VITE_API_URL
+        value: https://gestion-de-reservas-api.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, NetworkError, tokenStore } from '../api/client.js';
+
+/**
+ * URL a la que el usuario llega después de que esta pantalla confirma
+ * (o intenta confirmar) el estado del pago contra la API de Mercado Pago.
+ *
+ * Coincide con la URL pública del frontend que pidió el cliente como
+ * destino final del flujo de retorno de MP. Si la página de reservas
+ * cambia, este destino se cambia en un único lugar.
+ */
+const DESTINO_POST_PAGO = '/user/reservar';
+
+/** Segundos que el usuario tiene para leer el resultado antes de la
+ *  redirección automática. El botón "Ir a mis reservas" sigue disponible
+ *  para los que no quieran esperar. */
+const SEGUNDOS_REDIRECCION = 6;
 
 /**
  * Pantalla de retorno desde el checkout de Mercado Pago.
@@ -27,6 +42,9 @@ import { api, ApiError, NetworkError, tokenStore } from '../api/client.js';
 export default function ResultadoPago() {
     const [searchParams] = useSearchParams();
     const [estado, setEstado] = useState({ cargando: true, error: '', sesion: true });
+    const [segundos, setSegundos] = useState(SEGUNDOS_REDIRECCION);
+
+    const navigate = useNavigate();
 
     // Guards contra doble montaje en StrictMode (desarrollo).
     const consultado = useRef(false);
@@ -41,7 +59,7 @@ export default function ResultadoPago() {
         if (!paymentId && !referencia) {
             setEstado({
                 cargando: false,
-                error: 'No pudimos identificar el pago. Volvé a tus reservas para ver el estado.',
+                error: 'No pudimos identificar el pago. Te llevamos a tus reservas para ver el estado.',
                 sesion: tokenStore.get() != null,
             });
             return;
@@ -73,6 +91,30 @@ export default function ResultadoPago() {
         return () => controller.abort();
     }, [searchParams]);
 
+    /**
+     * Redirección automática al destino post-pago una vez que se resolvió la
+     * verificación. La pantalla muestra el resultado unos segundos para que
+     * el usuario lo lea; puede interrumpir la espera con el botón "Ir a mis
+     * reservas".
+     *
+     * Si no hay sesión (token ausente o expirado), lo mandamos a `/login` en
+     * lugar de a la página protegida, porque la ruta destino lo redirigiría
+     * de vuelta al login y el usuario vería un parpadeo.
+     */
+    useEffect(() => {
+        if (estado.cargando) {
+            // Mientras consulta, no arrancamos la cuenta regresiva.
+            return undefined;
+        }
+        if (segundos <= 0) {
+            const destino = estado.sesion ? DESTINO_POST_PAGO : '/login';
+            navigate(destino, { replace: true });
+            return undefined;
+        }
+        const id = setTimeout(() => setSegundos((valor) => valor - 1), 1000);
+        return () => clearTimeout(id);
+    }, [estado.cargando, estado.sesion, segundos, navigate]);
+
     return (
         <div className="min-h-dvh bg-[#171717] flex items-center justify-center p-4">
             <div className="w-full max-w-md">
@@ -81,13 +123,14 @@ export default function ResultadoPago() {
                     error={estado.error}
                     sesion={estado.sesion}
                     datos={estado.datos}
+                    segundos={segundos}
                 />
             </div>
         </div>
     );
 }
 
-function TarjetaResultado({ cargando, error, sesion, datos }) {
+function TarjetaResultado({ cargando, error, sesion, datos, segundos }) {
     if (cargando) {
         return (
             <Panel>
@@ -120,7 +163,7 @@ function TarjetaResultado({ cargando, error, sesion, datos }) {
                 <p role="alert" className="text-gray-300 text-sm">
                     {error}
                 </p>
-                <Acciones mostrarMisReservas={sesion} />
+                <Acciones mostrarMisReservas={sesion} segundos={segundos} />
             </Panel>
         );
     }
@@ -153,7 +196,7 @@ function TarjetaResultado({ cargando, error, sesion, datos }) {
                 </dl>
             ) : null}
 
-            <Acciones mostrarMisReservas={sesion} />
+            <Acciones mostrarMisReservas={sesion} segundos={segundos} />
         </Panel>
     );
 }
@@ -284,23 +327,38 @@ function Dato({ label, valor }) {
     );
 }
 
-function Acciones({ mostrarMisReservas }) {
-    return (
-        <div className="flex flex-col sm:flex-row gap-3 mt-2">
-            <Link
-                to="/login"
-                className="flex-1 text-center bg-white/10 hover:bg-white/20 text-blanco font-medium py-3 rounded-lg transition"
-            >
-                Iniciar sesión
-            </Link>
+function Acciones({ mostrarMisReservas, segundos }) {
+    const navigate = useNavigate();
 
-            {mostrarMisReservas && (
-                <Link
-                    to="/user/mis-reservas"
-                    className="flex-1 text-center bg-verde-principal hover:brightness-110 text-blanco font-bold py-3 rounded-lg transition shadow-md"
-                >
-                    Ver mis reservas
-                </Link>
+    const destino = mostrarMisReservas ? DESTINO_POST_PAGO : '/login';
+
+    return (
+        <div className="flex flex-col gap-3 mt-2">
+            <div className="flex flex-col sm:flex-row gap-3">
+                {!mostrarMisReservas && (
+                    <Link
+                        to="/login"
+                        className="flex-1 text-center bg-white/10 hover:bg-white/20 text-blanco font-medium py-3 rounded-lg transition"
+                    >
+                        Iniciar sesión
+                    </Link>
+                )}
+
+                {mostrarMisReservas && (
+                    <button
+                        type="button"
+                        onClick={() => navigate(destino, { replace: true })}
+                        className="flex-1 text-center bg-verde-principal hover:brightness-110 text-blanco font-bold py-3 rounded-lg transition shadow-md"
+                    >
+                        Ir a mis reservas
+                    </button>
+                )}
+            </div>
+
+            {Number.isFinite(segundos) && segundos > 0 && (
+                <p className="text-center text-xs text-gray-400">
+                    Te llevamos automáticamente en {segundos} s
+                </p>
             )}
         </div>
     );

@@ -19,20 +19,25 @@ const preferencias = new Preference(mercadoPago);
  * está, se deriva de `FRONTEND_URL` + la ruta del SPA que lo maneja.
  *
  * REQUISITO REAL DE MERCADO PAGO (verificado contra la API en Sandbox):
- * aunque los `back_urls` los abra el navegador del usuario, Mercado Pago
- * **descarta silenciosamente** cualquier URL que no sea HTTPS con host público.
- * Con `http://localhost:5173/pago/exito` la preferencia se crea pero vuelve con
- * `success` vacío, y si además está `auto_return: "approved"` la creación falla
- * con el críptico "auto_return invalid. back_url.success must be defined".
+ * las `back_urls` tienen que ser HTTPS **cuando la preferencia lleva
+ * `auto_return`**. Mercado Pago **descarta silenciosamente** cualquier `http://`
+ * o dirección privada en ese caso, y después falla con el críptico
+ * "auto_return invalid. back_url.success must be defined".
  *
- * Por eso acá se valida el requisito en vez de dejar que MP falle con un error
- * que no dice nada: en desarrollo hay que exponer el frontend con un túnel
- * (ngrok / cloudflared) y poner esa URL pública en FRONTEND_URL.
+ * O sea que el requisito no depende de NODE_ENV: depende de `auto_return`, que
+ * es lo único que decide este servicio (ver `debeUsarAutoReturn`). Con las
+ * back_urls en `http://localhost` la preferencia se crea bien, sólo que sin
+ * redirección automática y el usuario vuelve apretando «Volver a la tienda».
+ *
+ * En **desarrollo** (NODE_ENV !== "production") se acepta `http://localhost`
+ * además de HTTPS con host público. Sin esa excepción, ningún dev podría
+ * probar el flujo sin abrir un túnel. Si necesitás probar MP desde otra IP
+ * (por ejemplo desde un celular), exponé el frontend con ngrok o cloudflared
+ * y poné esa URL pública en FRONTEND_URL.
  */
 
 /** Hosts que MP nunca guarda como back_url, aunque el navegador los abra bien. */
 const HOSTS_NO_PUBLICOS = new Set([
-  "localhost",
   "127.0.0.1",
   "0.0.0.0",
   "::1",
@@ -51,6 +56,89 @@ function esHostPublico(hostname) {
   return true;
 }
 
+/**
+ * Indica si la URL dada es aceptable como back_url de Mercado Pago.
+ *
+ * Regla para producción (`NODE_ENV=production`): tiene que ser HTTPS con un
+ * host público; MP descarta silenciosamente cualquier `http://` o dirección
+ * privada, y con `auto_return` la creación de la preferencia falla con un
+ * error críptico ("auto_return invalid. back_url.success must be defined").
+ *
+ * Excepción para desarrollo: aceptamos `http://localhost` y `http://127.0.0.1`,
+ * que es donde corre Vite. Sin esa escape, ningún dev podría probar el flujo.
+ *
+ * @returns {{ ok: true } | { ok: false, motivo: string }}
+ */
+function validarBackUrl(valor) {
+  let url;
+  try {
+    url = new URL(valor);
+  } catch {
+    return { ok: false, motivo: "no es una URL válida" };
+  }
+
+  if (url.hostname === "example.com") {
+    return { ok: false, motivo: "apunta a example.com, que no aloja la aplicación" };
+  }
+
+  const esProduccion = process.env.NODE_ENV === "production";
+  const esLocalhost = url.hostname.toLowerCase() === "localhost";
+
+  if (esProduccion) {
+    if (url.protocol !== "https:") {
+      return {
+        ok: false,
+        motivo: "en producción la URL debe ser HTTPS",
+      };
+    }
+    if (!esHostPublico(url.hostname)) {
+      return {
+        ok: false,
+        motivo: "en producción la URL debe tener un host público (no localhost ni IP privada)",
+      };
+    }
+    return { ok: true };
+  }
+
+  // Desarrollo: https público o localhost http.
+  if (url.protocol === "https:") return { ok: true };
+
+  if (url.protocol === "http:" && esLocalhost) return { ok: true };
+
+  return {
+    ok: false,
+    motivo:
+      "en desarrollo solo se acepta http://localhost o https:// con host público. " +
+      "Para probar MP desde otra IP, exponé el frontend con un túnel (ngrok / cloudflared)",
+  };
+}
+
+/**
+ * Decide si la preferencia puede llevar `auto_return: "approved"`.
+ *
+ * Mercado Pago exige que las `back_urls` sean HTTPS en cuanto se usa
+ * `auto_return`. Verificado contra la API en Sandbox (2026-10-21):
+ *
+ *   http://localhost + auto_return  -> 400 "auto_return invalid.
+ *                                       back_url.success must be defined"
+ *   http://localhost SIN auto_return -> OK
+ *   https://        + auto_return  -> OK
+ *
+ * El mismo `http://localhost` funciona en las tres situaciones salvo
+ * combinado con `auto_return`: MP descarta en silencio las URLs no-HTTPS y
+ * después se queja de que no encontró `success`. O sea que el requisito de
+ * HTTPS no depende de NODE_ENV sino del propio uso de `auto_return`, y por eso
+ * acá se deriva del protocolo real de las URLs y no de una bandera de
+ * entorno.
+ *
+ * Sin `auto_return` el checkout funciona igual: el usuario paga y tiene que
+ * apretar "Volver a la tienda", que lo trae de vuelta al `success`. Es la
+ * diferencia entre develop y producción.
+ */
+function debeUsarAutoReturn(backUrls) {
+  return Object.values(backUrls).every((url) => url.startsWith("https://"));
+}
+
 function resolverBackUrls() {
   const base = (process.env.FRONTEND_URL || "http://localhost:5173").replace(
     /\/+$/,
@@ -65,32 +153,15 @@ function resolverBackUrls() {
 
   for (const [destino, valor] of Object.entries(urls)) {
     const variable = `MP_RETURN_URL_${destino.toUpperCase()}`;
+    const chequeo = validarBackUrl(valor);
 
-    let url;
-
-    try {
-      url = new URL(valor);
-    } catch {
-      throw new HttpError(500, `${variable}="${valor}" no es una URL válida.`);
-    }
-
-    if (url.hostname === "example.com") {
+    if (!chequeo.ok) {
       throw new HttpError(
         500,
-        `${variable} apunta a example.com, que no aloja la aplicación. ` +
-          `Configurala con la URL real del frontend.`,
-      );
-    }
-
-    if (url.protocol !== "https:" || !esHostPublico(url.hostname)) {
-      throw new HttpError(
-        500,
-        `${variable}="${valor}" no es una URL que Mercado Pago acepte como ` +
-          `back_url: necesita HTTPS y un host público. Mercado Pago descarta ` +
-          `en silencio las URLs locales (http://localhost:5173), y con ` +
-          `auto_return la creación de la preferencia falla. Expone el frontend ` +
-          `con un túnel (por ejemplo \`ngrok http 5173\`) y poné esa URL pública ` +
-          `en FRONTEND_URL.`,
+        `${variable}="${valor}" no es aceptable como back_url de Mercado ` +
+          `Pago: ${chequeo.motivo}. Configurala con la URL pública del ` +
+          `frontend (en producción: HTTPS del Static Site; en desarrollo: ` +
+          `http://localhost:5173 sirve, cualquier otra IP requiere un túnel).`,
       );
     }
   }
@@ -215,25 +286,43 @@ if (!notificationUrl) {
   // Esta llamada crea el enlace de checkout; no acredita un pago.
   let preferencia;
 
-  try {
-    preferencia = await preferencias.create({
-      body: {
-        items: [
-          {
-            id: String(reserva.id),
-            title: `Reserva de cancha: ${reserva.turno.cancha.nombre}`,
-            quantity: 1,
-            currency_id: "ARS",
-            unit_price: Number(pago.monto),
-          },
-        ],
-        external_reference: String(pago.id),
-          back_urls: backUrls,
-          auto_return: "approved",
-          notification_url: notificationUrl,
+  const body = {
+    items: [
+      {
+        id: String(reserva.id),
+        title: `Reserva de cancha: ${reserva.turno.cancha.nombre}`,
+        quantity: 1,
+        currency_id: "ARS",
+        unit_price: Number(pago.monto),
       },
-    });
-  } catch {
+    ],
+    external_reference: String(pago.id),
+    back_urls: backUrls,
+    notification_url: notificationUrl,
+  };
+
+  // Sólo se manda si las back_urls son HTTPS; ver debeUsarAutoReturn.
+  if (debeUsarAutoReturn(backUrls)) {
+    body.auto_return = "approved";
+  } else {
+    console.info(
+      "[MP] back_urls sin HTTPS: se omite auto_return. El usuario vuelve a la " +
+        "app apretando «Volver a la tienda» en el checkout de Mercado Pago.",
+    );
+  }
+
+  try {
+    preferencia = await preferencias.create({ body });
+  } catch (error) {
+    // El mensaje de MP es la única fuente de diagnóstico (por ejemplo
+    // "auto_return invalid. back_url.success must be defined"), así que se
+    // loguea acá. Al usuario se le devuelve algo genérico para no filtrar
+    // detalles de la integración.
+    console.error(
+      `[MP] preferences.create falló: ${error?.message ?? error} ` +
+        `(status ${error?.status ?? "s/d"}) — back_urls=${JSON.stringify(backUrls)}`,
+    );
+
     throw new HttpError(
       502,
       "No se pudo crear el enlace de Mercado Pago. Intentá nuevamente.",

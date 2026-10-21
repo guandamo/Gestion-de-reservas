@@ -12,37 +12,27 @@ import { useCountdownReenvio } from '../hooks/useCountdownReenvio.js';
 /**
  * ModalVerificacionEmail
  *
- * Simulación visual del flujo "ingresá el código de 6 dígitos que te
- * enviamos por correo" para una presentación universitaria. **No envía
- * correos reales ni valida contra el backend.**
+ * Pantalla de "ingresá el código de 6 dígitos" del flujo de verificación.
+ * El OTP en sí es simulado (no se envía correo real), pero la **acción de
+ * Continuar** está conectada al backend: la consumidora le pasa por `onContinuar`
+ * una función async que decide si crear la cuenta, cambiar la contraseña, etc.
+ *
+ * Si esa función rechaza, el modal muestra el mensaje en `error` y **no se
+ * cierra**, dejando al usuario reintentar (botón Continuar) o cancelar (X).
  *
  * Reutilizable por:
  *  - Registro (`contexto="registro"`): título "Verificá tu email".
  *  - Olvidé mi contraseña (`contexto="recuperacion"`): título "Recupera tu
- *    contraseña" (textual exigido por la demo).
- *
- * Comportamiento:
- *  - Muestra el email que el usuario realmente tipeó.
- *  - 6 casillas tipo `InputOTP` (dos grupos de 3 separados por `Separator`).
- *  - Permite tipear y pegar (input-otp lo soporta nativamente).
- *  - "Volver a enviar código" con cuenta regresiva de 90 s; al pulsarlo se
- *    reinicia el contador y se limpia el OTP tipeado (sin mostrar avisos
- *    adicionales).
- *  - "Continuar" siempre habilitado: no requiere un código correcto (el OTP es
- *    puramente visual). Llama a `onContinuar()` y cierra.
- *  - Estado del OTP se resetea cada vez que se (re)abre.
- *  - El contador pausado se reanuda donde quedó, y se pausa mientras el modal
- *    está cerrado (delegado a `useCountdownReenvio`).
- *  - `loading` opcional deshabilita el botón Continuar mientras se verifica
- *    externamente.
+ *    contraseña".
  *
  * Props:
  *  - open: boolean
  *  - onClose: () => void
- *  - onContinuar: () => void | Promise<void>   (se llama al pulsar Continuar)
+ *  - onContinuar: () => Promise<void> | void   (se llama al pulsar Continuar)
  *  - email: string                              (email a mostrar)
  *  - contexto?: 'registro' | 'recuperacion'     (default 'registro')
  *  - loading?: boolean                          (default false)
+ *  - error?: string                             (mensaje de error del backend)
  */
 export default function ModalVerificacionEmail({
     open,
@@ -51,6 +41,7 @@ export default function ModalVerificacionEmail({
     email = '',
     contexto = 'registro',
     loading = false,
+    error = '',
 }) {
     const [otp, setOtp] = useState('');
 
@@ -91,9 +82,13 @@ export default function ModalVerificacionEmail({
     const handleContinuar = async () => {
         try {
             await onContinuar?.();
-        } finally {
+            // El padre decide si cerrar el modal (éxito) o mostrar el error
+            // prop (fracaso). Si tu callback devuelve una promesa rechazada,
+            // el catch la absorbe sin cerrar.
             setOtp('');
-            onClose?.();
+        } catch {
+            // El padre ya setea `error` (prop) si quiere mostrar mensaje.
+            setOtp('');
         }
     };
 
@@ -143,6 +138,15 @@ export default function ModalVerificacionEmail({
              *  - Resend alineado al centro, sin `pt-1`.
              */}
             <div className="space-y-3">
+                {error && (
+                    <div
+                        role="alert"
+                        className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-2.5 rounded-lg text-center"
+                    >
+                        {error}
+                    </div>
+                )}
+
                 <p className="text-gray-300 text-sm leading-snug">
                     {subtitulo} Si no lo ves, revisá la carpeta de spam.
                 </p>

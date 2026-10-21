@@ -520,7 +520,12 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     const [serverError, setServerError] = useState('');
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
+    const [modalError, setModalError] = useState('');
+    const [modalLoading, setModalLoading] = useState(false);
     const checkControllerRef = useRef(null);
+    const registerControllerRef = useRef(null);
+
+    const { register } = useAuth();
 
     const validarTodo = () => {
         const next = {
@@ -535,9 +540,9 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     };
 
     /**
-     * El registro valida el form, consulta si el email existe, y si NO existe
-     * abre el modal de simulación. La cuenta nunca se crea (lo hará el flujo
-     * OTP real cuando se integre). Esto preserva el sistema de auth actual.
+     * Validar el form, consultar si el email ya existe y, si NO existe,
+     * abrir el modal OTP. La cuenta se crea recién cuando el usuario
+     * confirma el código simulado (ver `handleContinuarModal`).
      */
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -563,6 +568,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                 );
                 return;
             }
+            setModalError('');
             setModalOpen(true);
         } catch (err) {
             if (err?.name === 'AbortError') return;
@@ -588,14 +594,85 @@ function RegisterView({ onSwitchToLogin, navigate }) {
         }
     };
 
-    const handleContinuarModal = () => {
+    /**
+     * Confirmación del código OTP (simulado): crea la cuenta real y deja la
+     * sesión iniciada. La pantalla final del flujo es `/user/reservar` para
+     * que el usuario siga su intención original.
+     *
+     * Si la petición al backend falla, el modal queda abierto mostrando el
+     * motivo: el usuario puede intentar de nuevo o cancelar.
+     */
+    const handleContinuarModal = async () => {
+        if (registerControllerRef.current) return;
+
+        registerControllerRef.current?.abort();
+        const controller = new AbortController();
+        registerControllerRef.current = controller;
+
+        setModalError('');
+        setModalLoading(true);
+        try {
+            const usuario = await register(
+                {
+                    nombre,
+                    apellido,
+                    email,
+                    password,
+                    confirmPassword,
+                },
+                { signal: controller.signal },
+            );
+
+            if (controller.signal.aborted) return;
+
+            // Persistimos y navegamos al destino según el rol. Por
+            // construcción el registro siempre crea USUARIO.
+            const destino =
+                usuario.rol === 'ADMIN' ? '/admin' : '/user/reservar';
+            navigate(destino, { replace: true });
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+            if (err instanceof NetworkError) {
+                setModalError(
+                    'No pudimos crear tu cuenta. Revisá tu conexión e intentá de nuevo.',
+                );
+            } else if (err instanceof ApiError && err.status === 409) {
+                setModalError(
+                    'Ese correo ya fue registrado mientras completabas el código. Volvé a iniciar sesión.',
+                );
+            } else if (err instanceof ApiError && err.status >= 400) {
+                setModalError(
+                    err.message ||
+                        'No pudimos crear tu cuenta. Revisá los datos e intentá de nuevo.',
+                );
+            } else {
+                setModalError(
+                    err?.message ||
+                        'No pudimos crear tu cuenta. Intentá de nuevo en unos minutos.',
+                );
+            }
+        } finally {
+            if (registerControllerRef.current === controller) {
+                registerControllerRef.current = null;
+            }
+            setModalLoading(false);
+        }
+    };
+
+    const handleCerrarModal = () => {
+        // Si había una creación en curso, la cancelamos.
+        registerControllerRef.current?.abort();
+        registerControllerRef.current = null;
+        setModalError('');
+        setModalLoading(false);
         setModalOpen(false);
-        // Cierra la demo del registro sin crear cuenta y sin tocar sesión.
-        navigate('/login', { replace: true });
     };
 
     useEffect(
-        () => () => checkControllerRef.current?.abort(),
+        () => () => {
+            checkControllerRef.current?.abort();
+            registerControllerRef.current?.abort();
+        },
         [],
     );
 
@@ -741,13 +818,19 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                 </div>
             </div>
 
-            {/* Modal OTP (contexto registro). Mismo componente reutilizable. */}
+            {/* Modal OTP (contexto registro). El modal es visual: el código
+                simulado dispara handleContinuarModal, que es el que llama a
+                POST /api/auth/register y guarda la sesión. Si falla, el modal
+                queda abierto mostrando el error hasta que el usuario cancele
+                o reintente. */}
             <ModalVerificacionEmail
                 open={modalOpen}
-                onClose={() => setModalOpen(false)}
+                onClose={handleCerrarModal}
                 onContinuar={handleContinuarModal}
                 email={email}
                 contexto="registro"
+                loading={modalLoading}
+                error={modalError}
             />
         </>
     );
