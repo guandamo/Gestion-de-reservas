@@ -29,12 +29,14 @@ function validarEmail(v) {
     return null;
 }
 // Espeja la normalización del backend (`registerUsuario.validarTelefono`):
-// se aceptan espacios, guiones y paréntesis, pero el valor final tiene que ser
-// de 7 a 15 dígitos con un `+` inicial opcional.
+// se aceptan espacios, guiones y paréntesis, pero el valor final tiene que
+// cumplir `(prefijo)(7 dígitos)` — de 8 a 13 dígitos, con `+` inicial opcional.
 function validarTelefono(v) {
     const t = String(v ?? '').trim().replace(/[\s()-]/g, '');
     if (!t) return 'El teléfono es obligatorio.';
-    if (!/^\+?[0-9]{7,15}$/.test(t)) return 'Ingresá entre 7 y 15 dígitos.';
+    if (!/^\+?\d{8,13}$/.test(t)) {
+        return 'Ingresá un prefijo de 1 a 6 dígitos más 7 (8 a 13 en total).';
+    }
     return null;
 }
 function validarPassword(v) {

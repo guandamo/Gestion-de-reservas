@@ -25,6 +25,10 @@ import { prisma } from "../src/config/prisma.js";
 const BASE = process.env.API_BASE || "http://localhost:4000";
 const PERMITE_ESCRITURA = process.env.ALLOW_DB_WRITE === "1";
 
+// El mismo texto que devuelve `registerUsuario.validarTelefono`.
+const MENSAJE_FORMATO =
+  "El teléfono debe tener un prefijo de 1 a 6 dígitos más 7 dígitos (8 a 13 en total).";
+
 let passed = 0;
 let failed = 0;
 
@@ -98,28 +102,46 @@ await test("teléfono sólo con espacios → 400 'El teléfono es obligatorio.'"
   assert.equal(body.error, "El teléfono es obligatorio.");
 });
 
-await test("teléfono con letras → 400 'entre 7 y 15 dígitos'", async () => {
+await test("teléfono con letras → 400 de formato", async () => {
   const { status, body } = await http("POST", "/api/auth/register", {
     body: registro({ telefono: "telefono-de-quien-sea" }),
   });
   assert.equal(status, 400);
-  assert.equal(body.error, "El teléfono debe tener entre 7 y 15 dígitos.");
+  assert.equal(body.error, MENSAJE_FORMATO);
 });
 
-await test("teléfono demasiado corto (6 dígitos) → 400", async () => {
+await test("6 dígitos (sin prefijo suficiente) → 400", async () => {
   const { status, body } = await http("POST", "/api/auth/register", {
     body: registro({ telefono: "123456" }),
   });
   assert.equal(status, 400);
-  assert.equal(body.error, "El teléfono debe tener entre 7 y 15 dígitos.");
+  assert.equal(body.error, MENSAJE_FORMATO);
 });
 
-await test("teléfono demasiado largo (16 dígitos) → 400", async () => {
+await test("7 dígitos pelados, sin prefijo → 400", async () => {
+  // El borde que motiva la norma `(prefijo)(7 dígitos)`: 7 solos no tiene
+  // prefijo, así que no es un teléfono válido.
+  const { status, body } = await http("POST", "/api/auth/register", {
+    body: registro({ telefono: "1234567" }),
+  });
+  assert.equal(status, 400);
+  assert.equal(body.error, MENSAJE_FORMATO);
+});
+
+await test("14 dígitos (prefijo de 7) → 400", async () => {
+  const { status, body } = await http("POST", "/api/auth/register", {
+    body: registro({ telefono: "12345678901234" }),
+  });
+  assert.equal(status, 400);
+  assert.equal(body.error, MENSAJE_FORMATO);
+});
+
+await test("16 dígitos → 400", async () => {
   const { status, body } = await http("POST", "/api/auth/register", {
     body: registro({ telefono: "1234567890123456" }),
   });
   assert.equal(status, 400);
-  assert.equal(body.error, "El teléfono debe tener entre 7 y 15 dígitos.");
+  assert.equal(body.error, MENSAJE_FORMATO);
 });
 
 await test("teléfono no-string (número) → 400 'no es válido'", async () => {
@@ -135,7 +157,7 @@ await test("teléfono con letra pegada al número (+54a9) → 400", async () => 
     body: registro({ telefono: "+54a92211234567" }),
   });
   assert.equal(status, 400);
-  assert.equal(body.error, "El teléfono debe tener entre 7 y 15 dígitos.");
+  assert.equal(body.error, MENSAJE_FORMATO);
 });
 
 console.log("\nInmutabilidad del teléfono en el perfil (sin escrituras)");
@@ -166,7 +188,7 @@ if (!PERMITE_ESCRITURA) {
   const EMPAIL_B = `test-tel-b-${Date.now()}@example.com`;
 
   try {
-    await test("registra con '+54 9 221 123-4567' y guarda '5492211234567'", async () => {
+    await test("registra '+54 9 221 123-4567' y guarda '+5492211234567'", async () => {
       const { status, body } = await http("POST", "/api/auth/register", {
         body: registro({
           email: EMPAIL_A,
@@ -174,15 +196,17 @@ if (!PERMITE_ESCRITURA) {
         }),
       });
       assert.equal(status, 201);
-      assert.equal(body.usuario.telefono, "5492211234567");
+      assert.equal(body.usuario.telefono, "+5492211234567");
     });
 
     await test("el mismo teléfono escrito distinto → 409", async () => {
-      // "+54 9 221 123-4567" ya se guardó como "5492211234567". Si la
-      // normalización no funcionara, "(549) 2211234567" entraría como OTRO
-      // usuario duplicado con el mismo número real.
+      // "+54 9 221 123-4567" ya se guardó como "+5492211234567". Si la
+      // normalización no funcionara, "+54(9)2211234567" entraría como OTRO
+      // usuario duplicado con el mismo número real. Ojo: tiene que llevar el
+      // mismo `+`, porque "5492211234567" sin `+` es un valor DISTINTO y sí
+      // se aceptaría (ver la nota sobre el `+` en el mensaje de commit).
       const { status, body } = await http("POST", "/api/auth/register", {
-        body: registro({ email: EMPAIL_B, telefono: "(549) 221-123-4567" }),
+        body: registro({ email: EMPAIL_B, telefono: "+54(9)2211234567" }),
       });
       assert.equal(status, 409);
       assert.equal(body.error, "Ese teléfono ya está asociado a otra cuenta.");

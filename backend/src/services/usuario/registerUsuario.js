@@ -15,7 +15,7 @@ import { createAuditLog } from "../audit/createAuditLog.js";
  * @param {string} input.nombre
  * @param {string} input.apellido
  * @param {string} input.email
- * @param {string} input.telefono  obligatorio; se guarda normalizado (solo dígitos, con `+` inicial opcional)
+ * @param {string} input.telefono  obligatorio; `(prefijo)(7 dígitos)`, 8 a 13 dígitos. Se guarda normalizado (solo dígitos, con `+` inicial opcional)
  * @param {string} input.password
  * @param {string} input.confirmPassword
  */
@@ -182,6 +182,10 @@ function esEmailValido(email) {
  * Se aceptan los separadores que la gente escribe a mano (espacios, `-`, `()`)
  * y se guardan eliminados, así "11 (221) 123-4567" y "112214534567" terminan
  * como el mismo valor y no el mismo usuario duplicado en el UNIQUE.
+ *
+ * El formato exigido es `(prefijo)(7 dígitos)`: entre 1 y 6 dígitos de prefijo
+ * más los 7 del número de suscriptor, o sea 8 a 13 dígitos en total. Un número
+ * de 7 dígitos pelado se rechaza porque no tiene prefijo.
  */
 function validarTelefono(valor) {
   if (valor == null || (typeof valor === "string" && !valor.trim())) {
@@ -192,8 +196,11 @@ function validarTelefono(valor) {
   }
 
   const telefono = valor.trim().replace(/[\s()-]/g, "");
-  if (!/^\+?[0-9]{7,15}$/.test(telefono)) {
-    throw new HttpError(400, "El teléfono debe tener entre 7 y 15 dígitos.");
+  if (!/^\+?[0-9]{8,13}$/.test(telefono)) {
+    throw new HttpError(
+      400,
+      "El teléfono debe tener un prefijo de 1 a 6 dígitos más 7 dígitos (8 a 13 en total).",
+    );
   }
   return telefono;
 }
