@@ -182,7 +182,8 @@ export default function ReservasAdmin() {
                                         <th className="px-5 py-3 font-medium">Fecha</th>
                                         <th className="px-5 py-3 font-medium">Horario</th>
                                         <th className="px-5 py-3 font-medium">Precio</th>
-                                        <th className="px-5 py-3 font-medium">Estado</th>
+                                        <th className="px-5 py-3 font-medium"></th>
+                                        <th className="px-5 py-3 font-medium text-right">Estado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -213,20 +214,20 @@ export default function ReservasAdmin() {
                                                 ${Number(r.turno.precio).toLocaleString('es-AR')}
                                             </td>
                                             <td className="px-5 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <BotonCancelar
-                                                        reserva={r}
-                                                        cancelando={cancelandoId === r.id}
-                                                        onCancelar={handleCancelar}
-                                                    />
-                                                    <span
-                                                        className={`text-xs font-medium px-3 py-1 rounded-full border ${
-                                                            ESTILO_ESTADO[r.estado] ?? ESTILO_ESTADO.PENDIENTE
-                                                        }`}
-                                                    >
-                                                        {LABEL_ESTADO[r.estado] ?? r.estado}
-                                                    </span>
-                                                </div>
+                                                <BotonCancelar
+                                                    reserva={r}
+                                                    cancelando={cancelandoId === r.id}
+                                                    onCancelar={handleCancelar}
+                                                />
+                                            </td>
+                                            <td className="px-5 py-3 text-right">
+                                                <span
+                                                    className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                                                        ESTILO_ESTADO[r.estado] ?? ESTILO_ESTADO.PENDIENTE
+                                                    }`}
+                                                >
+                                                    {LABEL_ESTADO[r.estado] ?? r.estado}
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}
@@ -254,21 +255,23 @@ function ReservaMobile({ reserva, cancelando, onCancelar }) {
         <div className="p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
                 <span className="text-blanco font-semibold">#{reserva.id} · {reserva.cancha.nombre}</span>
-                <div className="flex items-center gap-2">
+                <span
+                    className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                        ESTILO_ESTADO[reserva.estado] ?? ESTILO_ESTADO.PENDIENTE
+                    }`}
+                >
+                    {LABEL_ESTADO[reserva.estado] ?? reserva.estado}
+                </span>
+            </div>
+            {reserva.estado !== 'CANCELADA' && (
+                <div className="flex justify-end">
                     <BotonCancelar
                         reserva={reserva}
                         cancelando={cancelando}
                         onCancelar={onCancelar}
                     />
-                    <span
-                        className={`text-xs font-medium px-3 py-1 rounded-full border ${
-                            ESTILO_ESTADO[reserva.estado] ?? ESTILO_ESTADO.PENDIENTE
-                        }`}
-                    >
-                        {LABEL_ESTADO[reserva.estado] ?? reserva.estado}
-                    </span>
                 </div>
-            </div>
+            )}
             <div className="text-sm text-gray-300">
                 {reserva.usuario
                     ? `${reserva.usuario.nombre} ${reserva.usuario.apellido}`
