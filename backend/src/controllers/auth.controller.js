@@ -1,5 +1,6 @@
 import { loginUsuario } from "../services/usuario/loginUsuario.js";
 import { registerUsuario } from "../services/usuario/registerUsuario.js";
+import { emailExiste } from "../services/usuario/emailExiste.js";
 import {
   actualizarPerfil,
   cambiarContrasena,
@@ -52,6 +53,25 @@ export async function register(req, res) {
 
   // Status 201 (recurso creado). Mismo shape que /login.
   return res.status(201).json(resultado);
+}
+
+/**
+ * GET /api/auth/existe-email?email=...
+ *
+ * Read-only. Pensado para que el frontend decida si abrir el modal de
+ * simulación de verificación de email sin escribir en la BD.
+ *
+ * Respuestas:
+ *  - 200 { existe: boolean }
+ *  - 400 si el email falta o no tiene formato válido.
+ */
+export async function existeEmail(req, res) {
+  const email = req.query?.email;
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "El email no tiene un formato válido." });
+  }
+  const existe = await emailExiste(email);
+  return res.json({ existe });
 }
 
 export async function me(req, res) {

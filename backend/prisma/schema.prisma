@@ -72,6 +72,11 @@ model Reserva {
   estado      EstadoReserva @default(PENDIENTE)
   cancelledAt DateTime?
 
+  // Instante en que una reserva PENDIENTE deja de ser pagable y el Turno
+  // vuelve a DISPONIBLE. Es NULL en reservas ya CONFIRMADA / CANCELADA y en
+  // las filas creadas antes de esta columna.
+  vencimientoAt DateTime?
+
   idUsuario Int
   idTurno   Int
 
@@ -79,6 +84,9 @@ model Reserva {
   turno   Turno   @relation(fields: [idTurno], references: [id])
 
   pago Pago?
+
+  // Soporta el barrido periódico: WHERE estado = 'PENDIENTE' AND vencimientoAt <= now()
+  @@index([estado, vencimientoAt])
 }
 enum EstadoReserva {
   PENDIENTE
