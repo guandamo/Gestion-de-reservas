@@ -40,6 +40,9 @@ export async function listarMisReservas({ idUsuario } = {}) {
     estado: r.estado,
     fechaAlta: r.fechaAlta,
     cancelledAt: r.cancelledAt,
+    // Vence una sola vez (en `crearReserva`). El frontend lo usa para
+    // mostrar el reloj y decidir si todavía se puede pagar.
+    vencimientoAt: r.vencimientoAt ? r.vencimientoAt.toISOString() : null,
     puedeCancelar:
       r.estado === "PENDIENTE" &&
       r.pago?.estado !== "PAGADO" &&

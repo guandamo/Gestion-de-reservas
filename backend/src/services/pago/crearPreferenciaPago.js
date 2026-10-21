@@ -148,7 +148,12 @@ function resolverBackUrls() {
   const urls = {
     success: process.env.MP_RETURN_URL_SUCCESS || `${base}/pago/exito`,
     pending: process.env.MP_RETURN_URL_PENDING || `${base}/pago/pendiente`,
-    failure: process.env.MP_RETURN_URL_FAILURE || `${base}/pago/fallo`,
+    // Si el usuario abandona el checkout de MP (botón "Cancelar", timeout,
+    // error en la pasarela, etc.) lo mandamos directo a "Mis reservas" para
+    // que pueda ver su reserva pendiente, el tiempo que le queda y volver a
+    // pagar desde ahí si todavía está dentro de los 3 minutos. La pantalla
+    // /pago/fallo sigue existiendo por si alguien entra a esa URL directo.
+    failure: process.env.MP_RETURN_URL_FAILURE || `${base}/user/mis-reservas`,
   };
 
   for (const [destino, valor] of Object.entries(urls)) {
@@ -206,6 +211,23 @@ export async function crearPreferenciaPago({ idReserva, idUsuario } = {}) {
 
   if (reserva.pago?.estado === "PAGADO") {
     throw new HttpError(409, "La reserva ya está pagada.");
+  }
+
+  // La reserva vence EXACTAMENTE a `vencimientoAt`. Si ya pasó, el barrido
+  // periódico la va a cancelar (o ya lo hizo) y el turno se va a liberar
+  // para otro usuario. Rehusamos explícitamente: dejar que el usuario pague
+  // acá terminaría con un cobro para una reserva que ya no le pertenece.
+  //
+  // El `vencimientoAt` NO se vuelve a setear: cada llamada a este servicio
+  // usa el mismo deadline original.
+  if (
+    reserva.vencimientoAt &&
+    reserva.vencimientoAt.getTime() <= Date.now()
+  ) {
+    throw new HttpError(
+      409,
+      "La reserva venció. El turno volvió a estar disponible.",
+    );
   }
 
   if (

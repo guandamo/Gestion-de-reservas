@@ -7,6 +7,7 @@ export default function MisReservas({ refreshKey = 0 }) {
     const [error, setError] = useState('');
     const [aviso, setAviso] = useState(null);
     const [cancelandoId, setCancelandoId] = useState(null);
+    const [pagandoId, setPagandoId] = useState(null);
 
     const operacionEnCurso = useRef(false);
     const ultimaCarga = useRef(0);
@@ -67,7 +68,7 @@ export default function MisReservas({ refreshKey = 0 }) {
                             ...item,
                             estado: 'CANCELADA',
                             puedeCancelar: false,
-                        }
+                          }
                         : item
                 )
             );
@@ -89,6 +90,76 @@ export default function MisReservas({ refreshKey = 0 }) {
             await cargar();
             operacionEnCurso.current = false;
             setCancelandoId(null);
+        }
+    }
+
+    /**
+     * "Pagar" desde Mis reservas: pide una preferencia NUEVA de MP para una
+     * reserva que ya existe y sigue PENDIENTE, y redirige al checkout.
+     *
+     * El backend reutiliza el mismo `Pago` (upsert por idReserva) y **no**
+     * toca `vencimientoAt`: el reloj que el usuario ve sigue siendo el de
+     * cuando creó la reserva originalmente.
+     *
+     * Si el backend responde 409 ("venció"), el barrido periódico ya pasó la
+     * reserva a CANCELADA; recargamos la lista para que se vea el estado
+     * nuevo. Si la respuesta es cualquier otro error (red, 5xx), dejamos
+     * el aviso sin tocar la lista.
+     */
+    async function pagar(reserva) {
+        if (operacionEnCurso.current) return;
+        if (!reserva?.vencimientoAt) {
+            setAviso({
+                tipo: 'error',
+                texto: 'No se puede iniciar el pago de esta reserva.',
+            });
+            return;
+        }
+
+        // Defensa en el cliente: si la cuenta regresiva ya llegó a 0, no
+        // seguimos. El backend igual rechazaría con 409, así que cortamos acá.
+        if (new Date(reserva.vencimientoAt).getTime() <= Date.now()) {
+            setAviso({
+                tipo: 'error',
+                texto: 'La reserva venció. Te recargamos la lista.',
+            });
+            await cargar();
+            return;
+        }
+
+        operacionEnCurso.current = true;
+        setPagandoId(reserva.id);
+        setAviso(null);
+
+        try {
+            const pago = await api.post('/payments/preference', {
+                idReserva: reserva.id,
+            });
+
+            const enlace = pago?.checkoutUrl;
+            if (!enlace) {
+                throw new Error('Mercado Pago no devolvió el enlace de pago.');
+            }
+
+            window.location.assign(enlace);
+        } catch (err) {
+            const mensaje = err?.message || 'No se pudo iniciar el pago.';
+
+            // 409 = la reserva se venció mientras el usuario miraba la lista.
+            // La sweep ya la pasó (o está por pasarla) a CANCELADA, así que
+            // recargamos para reflejar el estado real.
+            if (err?.status === 409) {
+                setAviso({
+                    tipo: 'error',
+                    texto: `${mensaje} Te recargamos la lista.`,
+                });
+                await cargar();
+            } else {
+                setAviso({ tipo: 'error', texto: mensaje });
+            }
+        } finally {
+            operacionEnCurso.current = false;
+            setPagandoId(null);
         }
     }
 
@@ -116,7 +187,7 @@ export default function MisReservas({ refreshKey = 0 }) {
                     <button
                         type="button"
                         onClick={cargar}
-                        disabled={loading || cancelandoId !== null}
+                        disabled={loading || cancelandoId !== null || pagandoId !== null}
                         className="mt-2 underline disabled:opacity-50"
                     >
                         Reintentar carga
@@ -150,17 +221,38 @@ export default function MisReservas({ refreshKey = 0 }) {
                     reserva={reserva}
                     onCancelar={cancelar}
                     cancelando={cancelandoId === reserva.id}
-                    bloqueado={loading || cancelandoId !== null}
+                    onPagar={pagar}
+                    pagando={pagandoId === reserva.id}
+                    bloqueado={loading || cancelandoId !== null || pagandoId !== null}
                 />
             ))}
         </div>
     );
 }
 
+/**
+ * Formatea milisegundos restantes como `mm:ss`.
+ *
+ * Si quedan más de 60 minutos (caso teórico: el usuario abandonó y volvió
+ * días después con la misma reserva, lo cual no debería pasar porque la
+ * sweep la cancela) devolvemos `mm:ss` con minutos grandes igual; el patrón
+ * `mm` se corta a los 60 minutos y vuelve a contar, lo que es feo pero
+ * honesto. En la práctica nunca veremos más de 03:00.
+ */
+function formatearRestante(ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return '00:00';
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 function ReservaCard({
     reserva,
     onCancelar,
     cancelando,
+    onPagar,
+    pagando,
     bloqueado,
 }) {
     const estilos = {
@@ -177,6 +269,39 @@ function ReservaCard({
         CONFIRMADA: 'Confirmada',
         CANCELADA: 'Cancelada',
     }[estado] || estado;
+
+    // Cronómetro cliente: tick cada 1 s. La decisión "botón Pagar visible"
+    // vive acá (no en el padre) para que reaccione a la cuenta regresiva
+    // sin necesidad de recargar nada. El backend es la otra barrera.
+    const [ahoraMs, setAhoraMs] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (estado !== 'PENDIENTE' || !reserva.vencimientoAt) {
+            return undefined;
+        }
+        const id = setInterval(() => setAhoraMs(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [estado, reserva.vencimientoAt]);
+
+    const vencimientoMs = reserva.vencimientoAt
+        ? new Date(reserva.vencimientoAt).getTime()
+        : null;
+
+    const msRestantes =
+        vencimientoMs !== null && Number.isFinite(vencimientoMs)
+            ? vencimientoMs - ahoraMs
+            : null;
+
+    const pendienteyVigente =
+        estado === 'PENDIENTE' &&
+        vencimientoMs !== null &&
+        msRestantes !== null &&
+        msRestantes > 0;
+
+    // El reloj se ve aunque la reserva no sea PENDIENTE no tiene sentido;
+    // queda fuera de la card. Sólo lo mostramos cuando todavía se puede
+    // actuar sobre la reserva.
+    const mostrarReloj = pendienteyVigente;
 
     return (
         <div className="bg-[#222222] border border-white/5 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
@@ -198,6 +323,12 @@ function ReservaCard({
                     {' · '}
                     {reserva.turno.horaInicio} - {reserva.turno.horaFin}
                 </div>
+
+                {mostrarReloj && (
+                    <p className="text-xs text-yellow-300/80 mt-1">
+                        Se libera sola en {formatearRestante(msRestantes)}.
+                    </p>
+                )}
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
@@ -210,6 +341,17 @@ function ReservaCard({
                 >
                     {labelEstado}
                 </span>
+
+                {pendienteyVigente && (
+                    <button
+                        type="button"
+                        onClick={() => onPagar(reserva)}
+                        disabled={bloqueado}
+                        className="text-sm font-medium px-3 py-2 rounded-lg border border-verde-principal/60 bg-verde-principal/10 text-verde-claro hover:bg-verde-principal/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        {pagando ? 'Conectando con Mercado Pago…' : 'Pagar'}
+                    </button>
+                )}
 
                 {reserva.puedeCancelar && (
                     <button
