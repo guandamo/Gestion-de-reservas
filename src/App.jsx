@@ -16,6 +16,7 @@ import UserLayout from './layouts/UserLayout.jsx';
 import ReservarView from './pages/ReservarView.jsx';
 import MisReservasView from './pages/MisReservasView.jsx';
 import Perfil from './pages/Perfil.jsx';
+import ResultadoPago from './pages/ResultadoPago.jsx';
 
 export default function App() {
     return (
@@ -56,6 +57,15 @@ export default function App() {
                         <Route path="mis-reservas" element={<MisReservasView />} />
                         <Route path="perfil" element={<Perfil />} />
                     </Route>
+
+                    {/* Destinos de retorno de Mercado Pago.
+                        Van antes del catch-all porque si no, el `*` los
+                        mandaría a /login. Son públicas a propósito: la
+                        pantalla debe renderizar aunque el usuario haya perdido
+                        la sesión durante el redirect. */}
+                    <Route path="/pago/exito" element={<ResultadoPago />} />
+                    <Route path="/pago/pendiente" element={<ResultadoPago />} />
+                    <Route path="/pago/fallo" element={<ResultadoPago />} />
 
                     {/* Cualquier ruta desconocida -> login */}
                     <Route path="*" element={<Navigate to="/login" replace />} />

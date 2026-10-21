@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { ApiError, NetworkError } from '../api/client.js';
+import { ApiError, NetworkError, api } from '../api/client.js';
+import ModalVerificacionEmail from '../components/ModalVerificacionEmail.jsx';
+import ModalCambiarContrasena from '../components/ModalCambiarContrasena.jsx';
 
 // --- validaciones en espejo del backend ---
 function validarNombre(v) {
@@ -35,12 +37,43 @@ function validarConfirm(v, password) {
     return null;
 }
 
+/**
+ * Normaliza el email para comparación (`trim()` + `lowercase()`).
+ * Coherente con el backend (ver `loginUsuario.js`, `registerUsuario.js`,
+ * `emailExiste.js`).
+ */
+function normalizarEmail(v) {
+    return String(v ?? '').trim().toLowerCase();
+}
+
+/**
+ * GET /api/auth/existe-email?email=...
+ *
+ * Devuelve `{ existe: boolean }`. Se usa antes de abrir el modal para
+ * distinguir registro de recuperación.
+ */
+async function checkEmailExiste(email, signal) {
+    const params = new URLSearchParams({ email: normalizarEmail(email) });
+    return api.get(`/auth/existe-email?${params.toString()}`, { signal });
+}
+
 export default function Login() {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Estado del modal OTP (contexto siempre "recuperacion" en Login).
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalEmail, setModalEmail] = useState('');
+
+    // Estado del modal de cambio de contraseña simulado.
+    const [cambioSimuladoOpen, setCambioSimuladoOpen] = useState(false);
+
+    // Loading independiente del check de existencia para no bloquear el botón
+    // "Ingresar" mientras se consulta el endpoint.
+    const [checkingEmail, setCheckingEmail] = useState(false);
 
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -53,11 +86,12 @@ export default function Login() {
     const enCursoRef = useRef(false);
     // AbortController del request en curso; se cancela al reenviar el form.
     const controllerRef = useRef(null);
+    // Idem para el check de existencia de email.
+    const checkControllerRef = useRef(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Si ya hay un submit en curso, ignoramos el reenvío silenciosamente.
         if (enCursoRef.current) {
             return;
         }
@@ -69,8 +103,6 @@ export default function Login() {
             return;
         }
 
-        // Cancelar cualquier request previo (por si el ref de control se
-        // hubiera quedado apuntando a un AbortController anterior).
         controllerRef.current?.abort();
         const controller = new AbortController();
         controllerRef.current = controller;
@@ -90,7 +122,6 @@ export default function Login() {
                         : '/user';
             navigate(destino, { replace: true });
         } catch (err) {
-            // AbortError: el caller canceló el request; no es un error de usuario.
             if (err?.name === 'AbortError') {
                 return;
             }
@@ -120,8 +151,112 @@ export default function Login() {
     // Si el componente se desmonta a mitad de un request, lo cancelamos
     // para no actualizar estado de un componente inexistente.
     useEffect(() => {
-        return () => controllerRef.current?.abort();
+        return () => {
+            controllerRef.current?.abort();
+            checkControllerRef.current?.abort();
+        };
     }, []);
+
+    /**
+     * "Olvidé mi contraseña" desde el formulario de login (mobile y desktop).
+     *
+     * Distingue tres casos según lo que el usuario haya tipeado:
+     *  1. Campo vacío → mensaje "por favor, ingresá un correo para continuar."
+     *  2. Formato inválido → mensaje "el correo ingresado no tiene un formato
+     *     válido."
+     *  3. Formato OK → consulta `/api/auth/existe-email`; si existe, abre el
+     *     modal OTP en contexto "recuperacion"; si no, muestra el mensaje
+     *     correspondiente y NO abre el modal.
+     *
+     * Mientras se hace la consulta se bloquea el botón para evitar
+     * solicitudes duplicadas (Enter repetido / doble click).
+     */
+    const handleOlvideContrasena = async () => {
+        setError('');
+
+        // Caso 1: campo vacío. `validarEmail` devolvería "El email es
+        // obligatorio", pero acá queremos un mensaje específico del flujo.
+        if (!email || !email.trim()) {
+            setError('Por favor, ingresá un correo para continuar.');
+            return;
+        }
+
+        // Caso 2: formato inválido.
+        const formatoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+        if (!formatoValido) {
+            setError('El correo ingresado no tiene un formato válido.');
+            return;
+        }
+
+        // Evitar duplicar la consulta: si ya hay una en curso, ignoramos.
+        if (checkControllerRef.current) {
+            return;
+        }
+        const controller = new AbortController();
+        checkControllerRef.current = controller;
+
+        setCheckingEmail(true);
+        try {
+            const { existe } = await checkEmailExiste(email, controller.signal);
+            if (controller.signal.aborted) return;
+
+            if (!existe) {
+                setError(
+                    'No encontramos una cuenta registrada con ese correo electrónico.',
+                );
+                return;
+            }
+            // Caso 3 OK: abrimos el modal OTP reutilizable.
+            setModalEmail(normalizarEmail(email));
+            setModalOpen(true);
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+            if (err instanceof ApiError && err.status >= 400) {
+                setError(
+                    err.message ||
+                        'No pudimos verificar tu correo. Intentá de nuevo en unos minutos.',
+                );
+            } else if (err instanceof NetworkError) {
+                setError(
+                    'No pudimos verificar tu correo. Revisá tu conexión e intentá de nuevo.',
+                );
+            } else {
+                setError(
+                    err?.message || 'No pudimos verificar tu correo.',
+                );
+            }
+        } finally {
+            if (checkControllerRef.current === controller) {
+                checkControllerRef.current = null;
+            }
+            setCheckingEmail(false);
+        }
+    };
+
+    /**
+     * "Continuar" en el modal OTP (contexto recuperación):
+     *  - Cierra el OTP.
+     *  - Abre `ModalCambiarContrasena` en modo simulación (sin PATCH real).
+     *  - No navega a ninguna ruta.
+     */
+    const handleContinuarOtpRecuperacion = () => {
+        setModalOpen(false);
+        setCambioSimuladoOpen(true);
+    };
+
+    /**
+     * Al cerrar el modal de cambio de contraseña (botón "Volver al login",
+     * "Cancelar" o backdrop), regresamos al login.
+     *
+     * El mensaje de éxito se muestra DENTRO del propio modal de cambio de
+     * contraseña (`ModalCambiarContrasena`), no en esta pantalla.
+     */
+    const handleCerrarCambioSimulado = () => {
+        setCambioSimuladoOpen(false);
+        // Por seguridad visual borramos la contraseña que el usuario
+        // pudo haber tipeado pero nunca se guardó en la simulación.
+        setPassword('');
+    };
 
     const toggleView = () => {
         setIsLoginView(!isLoginView);
@@ -135,7 +270,6 @@ export default function Login() {
             <RegisterView
                 onSwitchToLogin={toggleView}
                 navigate={navigate}
-                from={from}
             />
         );
     }
@@ -197,9 +331,17 @@ export default function Login() {
                             <div className="flex justify-end">
                                 <button
                                     type="button"
-                                    className="text-sm text-verde-claro hover:text-blanco transition font-medium"
-                                    onClick={() => alert('Contactá al administrador para restablecer tu contraseña.')}
+                                    className="text-sm text-verde-claro hover:text-blanco transition font-medium disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                                    onClick={handleOlvideContrasena}
+                                    disabled={loading || checkingEmail}
+                                    aria-busy={checkingEmail}
                                 >
+                                    {checkingEmail && (
+                                        <span
+                                            className="inline-block w-3.5 h-3.5 border-2 border-verde-claro/40 border-t-verde-claro rounded-full animate-spin"
+                                            aria-hidden="true"
+                                        />
+                                    )}
                                     ¿Olvidaste tu contraseña?
                                 </button>
                             </div>
@@ -250,7 +392,7 @@ export default function Login() {
                     <div className="w-full max-w-md">
 
                         <h2 className="text-4xl font-bold text-white mb-2">Bienvenido</h2>
-                        <p className="text-gray-400 mb-8 text-sm">Ingresá a tu cuenta para continuar</p>
+                        <p className="text-gray-400 mb-6 text-sm">Ingresá a tu cuenta para continuar</p>
 
                         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
@@ -294,6 +436,24 @@ export default function Login() {
                                 </div>
                             </div>
 
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={handleOlvideContrasena}
+                                    disabled={loading || checkingEmail}
+                                    aria-busy={checkingEmail}
+                                    className="text-sm text-verde-claro hover:text-blanco transition font-medium disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                                >
+                                    {checkingEmail && (
+                                        <span
+                                            className="inline-block w-3.5 h-3.5 border-2 border-verde-claro/40 border-t-verde-claro rounded-full animate-spin"
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                    ¿Olvidaste tu contraseña?
+                                </button>
+                            </div>
+
                             {error && (
                                 <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center mt-2">
                                     {error}
@@ -324,6 +484,25 @@ export default function Login() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal OTP — siempre en contexto recuperación desde Login. */}
+            <ModalVerificacionEmail
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                onContinuar={handleContinuarOtpRecuperacion}
+                email={modalEmail}
+                contexto="recuperacion"
+            />
+
+            {/* Modal de cambio de contraseña simulado (sin PATCH real).
+                El modal muestra el mensaje de éxito por sí solo; este
+                componente solo gestiona abrir / cerrar y limpiar la
+                contraseña escrita en el login. */}
+            <ModalCambiarContrasena
+                open={cambioSimuladoOpen}
+                onClose={handleCerrarCambioSimulado}
+                simulacion
+            />
         </>
     );
 }
@@ -331,9 +510,7 @@ export default function Login() {
 // ============================================================
 // Registro
 // ============================================================
-function RegisterView({ onSwitchToLogin, navigate, from }) {
-    const { register } = useAuth();
-
+function RegisterView({ onSwitchToLogin, navigate }) {
     const [nombre, setNombre] = useState('');
     const [apellido, setApellido] = useState('');
     const [email, setEmail] = useState('');
@@ -342,6 +519,8 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
     const [errors, setErrors] = useState({});
     const [serverError, setServerError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [modalOpen, setModalOpen] = useState(false);
+    const checkControllerRef = useRef(null);
 
     const validarTodo = () => {
         const next = {
@@ -355,41 +534,70 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
         return Object.values(next).every((e) => !e);
     };
 
+    /**
+     * El registro valida el form, consulta si el email existe, y si NO existe
+     * abre el modal de simulación. La cuenta nunca se crea (lo hará el flujo
+     * OTP real cuando se integre). Esto preserva el sistema de auth actual.
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setServerError('');
         if (!validarTodo()) return;
 
+        // Anti-duplicado: si ya hay una consulta en vuelo, ignoramos el
+        // segundo submit (Enter repetido / doble click).
+        if (checkControllerRef.current) {
+            return;
+        }
+        const controller = new AbortController();
+        checkControllerRef.current = controller;
+
         try {
             setLoading(true);
-            const user = await register({
-                nombre: nombre.trim(),
-                apellido: apellido.trim(),
-                email: email.trim().toLowerCase(),
-                password,
-                confirmPassword,
-            });
-            const destino =
-                from && from !== '/login'
-                    ? from
-                    : user.rol === 'ADMIN'
-                        ? '/admin'
-                        : '/user';
-            navigate(destino, { replace: true });
-        } catch (err) {
-            if (err instanceof ApiError && err.status === 409) {
+            const { existe } = await checkEmailExiste(email, controller.signal);
+            if (controller.signal.aborted) return;
+
+            if (existe) {
                 setServerError(
                     'Ya existe una cuenta registrada con ese correo electrónico.',
                 );
-            } else if (err instanceof ApiError && err.status === 400) {
-                setServerError(err.message || 'Datos inválidos.');
+                return;
+            }
+            setModalOpen(true);
+        } catch (err) {
+            if (err?.name === 'AbortError') return;
+            if (err instanceof NetworkError) {
+                setServerError(
+                    'No pudimos verificar tu correo. Revisá tu conexión e intentá de nuevo.',
+                );
+            } else if (err instanceof ApiError && err.status >= 400) {
+                setServerError(
+                    err.message ||
+                        'No pudimos validar el formulario. Intentá de nuevo en unos minutos.',
+                );
             } else {
-                setServerError(err?.message || 'No se pudo crear la cuenta.');
+                setServerError(
+                    err?.message || 'No pudimos validar el formulario.',
+                );
             }
         } finally {
             setLoading(false);
+            if (checkControllerRef.current === controller) {
+                checkControllerRef.current = null;
+            }
         }
     };
+
+    const handleContinuarModal = () => {
+        setModalOpen(false);
+        // Cierra la demo del registro sin crear cuenta y sin tocar sesión.
+        navigate('/login', { replace: true });
+    };
+
+    useEffect(
+        () => () => checkControllerRef.current?.abort(),
+        [],
+    );
 
     // Para que el botón se habilite solo cuando no hay errores visibles
     const hayErroresVisibles =
@@ -429,7 +637,7 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
                                 disabled={loading || hayErroresVisibles}
                                 className="w-full bg-verde-principal text-blanco font-bold text-lg py-3 rounded-lg mt-1 hover:brightness-110 transition disabled:opacity-60 shadow-md"
                             >
-                                {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+                                {loading ? 'Verificando...' : 'Crear cuenta'}
                             </button>
 
                             <button
@@ -518,7 +726,7 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
                                 disabled={loading || hayErroresVisibles}
                                 className="w-full bg-white text-black font-bold text-lg py-3 rounded-lg mt-2 hover:bg-gray-200 transition disabled:opacity-60"
                             >
-                                {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+                                {loading ? 'Verificando...' : 'Crear cuenta'}
                             </button>
 
                             <button
@@ -532,6 +740,15 @@ function RegisterView({ onSwitchToLogin, navigate, from }) {
                     </div>
                 </div>
             </div>
+
+            {/* Modal OTP (contexto registro). Mismo componente reutilizable. */}
+            <ModalVerificacionEmail
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                onContinuar={handleContinuarModal}
+                email={email}
+                contexto="registro"
+            />
         </>
     );
 }
