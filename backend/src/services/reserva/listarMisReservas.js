@@ -4,7 +4,19 @@ import { HttpError } from "../../utils/httpError.js";
 
 /**
  * Lista las reservas (activas y canceladas) del usuario autenticado,
- * con datos del turno y la cancha, ordenadas por fecha de turno descendente.
+ * con datos del turno y la cancha.
+ *
+ * ORDEN: por `fechaAlta` descendente — la reserva más reciente primero, la
+ * más vieja última. Es el orden de "qué fue lo último que reservé", no de
+ * "cuándo tengo que jugar": se ordena por cuándo se creó la reserva, así que
+ * dos reservas del mismo día se ordenan por hora de creación.
+ *
+ * Antes se ordenaba por `turno.fecha DESC`, que dejaba el turno más lejano
+ * primero y el más cercano al final.
+ *
+ * El `id DESC` de desempate no es decorativo: dos reservas pueden compartir
+ * `fechaAlta` al milisegundo, y sin un segundo criterio el orden que devuelve
+ * Postgres no es estable entre llamadas — la lista "saltaría" al recargar.
  */
 export async function listarMisReservas({ idUsuario } = {}) {
   if (!idUsuario) {
@@ -28,11 +40,8 @@ export async function listarMisReservas({ idUsuario } = {}) {
     include: {
       pago: { select: { estado: true } },
       turno: { include: { cancha: { include: { tipoCancha: true } } } },
-    }, 
-    orderBy: [
-      { turno: { fecha: "desc" } },
-      { turno: { horaInicio: "desc" } },
-    ],
+    },
+    orderBy: [{ fechaAlta: "desc" }, { id: "desc" }],
   });
 
   return reservas.map((r) => ({
