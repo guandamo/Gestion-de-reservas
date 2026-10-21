@@ -129,18 +129,6 @@ export default function ReservasAdmin() {
                 />
             </div>
 
-            {/*
-              El total de ingresos cuenta las reservas NO canceladas. Si el
-              admin cancela una CONFIRMADA, el pago sigue en PAGADO (el dinero
-              entró) pero el total baja. Conviene que quede dicho, o parece un
-              bug de la pantalla.
-            */}
-            <p className="-mt-3 text-xs text-gray-500">
-                Los ingresos suman las reservas no canceladas. Si cancelás una
-                reserva ya pagada, el total baja igual: el pago queda cobrado y
-                el reembolso se gestiona a mano.
-            </p>
-
             {error && (
                 <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg">
                     {error}
@@ -195,7 +183,6 @@ export default function ReservasAdmin() {
                                         <th className="px-5 py-3 font-medium">Horario</th>
                                         <th className="px-5 py-3 font-medium">Precio</th>
                                         <th className="px-5 py-3 font-medium">Estado</th>
-                                        <th className="px-5 py-3 font-medium text-right">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -226,20 +213,20 @@ export default function ReservasAdmin() {
                                                 ${Number(r.turno.precio).toLocaleString('es-AR')}
                                             </td>
                                             <td className="px-5 py-3">
-                                                <span
-                                                    className={`text-xs font-medium px-3 py-1 rounded-full border ${
-                                                        ESTILO_ESTADO[r.estado] ?? ESTILO_ESTADO.PENDIENTE
-                                                    }`}
-                                                >
-                                                    {LABEL_ESTADO[r.estado] ?? r.estado}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-3 text-right">
-                                                <BotonCancelar
-                                                    reserva={r}
-                                                    cancelando={cancelandoId === r.id}
-                                                    onCancelar={handleCancelar}
-                                                />
+                                                <div className="flex items-center gap-2">
+                                                    <BotonCancelar
+                                                        reserva={r}
+                                                        cancelando={cancelandoId === r.id}
+                                                        onCancelar={handleCancelar}
+                                                    />
+                                                    <span
+                                                        className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                                                            ESTILO_ESTADO[r.estado] ?? ESTILO_ESTADO.PENDIENTE
+                                                        }`}
+                                                    >
+                                                        {LABEL_ESTADO[r.estado] ?? r.estado}
+                                                    </span>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -267,13 +254,20 @@ function ReservaMobile({ reserva, cancelando, onCancelar }) {
         <div className="p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
                 <span className="text-blanco font-semibold">#{reserva.id} · {reserva.cancha.nombre}</span>
-                <span
-                    className={`text-xs font-medium px-3 py-1 rounded-full border ${
-                        ESTILO_ESTADO[reserva.estado] ?? ESTILO_ESTADO.PENDIENTE
-                    }`}
-                >
-                    {LABEL_ESTADO[reserva.estado] ?? reserva.estado}
-                </span>
+                <div className="flex items-center gap-2">
+                    <BotonCancelar
+                        reserva={reserva}
+                        cancelando={cancelando}
+                        onCancelar={onCancelar}
+                    />
+                    <span
+                        className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                            ESTILO_ESTADO[reserva.estado] ?? ESTILO_ESTADO.PENDIENTE
+                        }`}
+                    >
+                        {LABEL_ESTADO[reserva.estado] ?? reserva.estado}
+                    </span>
+                </div>
             </div>
             <div className="text-sm text-gray-300">
                 {reserva.usuario
@@ -283,15 +277,8 @@ function ReservaMobile({ reserva, cancelando, onCancelar }) {
             <div className="text-sm text-gray-300">
                 {formatearFechaCorta(reserva.turno.fecha)} · {reserva.turno.horaInicio} - {reserva.turno.horaFin}
             </div>
-            <div className="flex items-center justify-between">
-                <span className="text-sm text-blanco font-bold">
-                    ${Number(reserva.turno.precio).toLocaleString('es-AR')}
-                </span>
-                <BotonCancelar
-                    reserva={reserva}
-                    cancelando={cancelando}
-                    onCancelar={onCancelar}
-                />
+            <div className="text-sm text-blanco font-bold">
+                ${Number(reserva.turno.precio).toLocaleString('es-AR')}
             </div>
         </div>
     );
