@@ -73,7 +73,7 @@ export default function Usuarios() {
     };
 
     const usuariosFiltrados = usuarios.filter((u) => {
-        const coincideBusqueda = `${u.nombre} ${u.apellido} ${u.email}`
+        const coincideBusqueda = `${u.nombre} ${u.apellido} ${u.email} ${u.telefono ?? ''}`
             .toLowerCase()
             .includes(busqueda.toLowerCase());
         const coincideRol = filtroRol === 'todos' || u.rol === filtroRol;
@@ -111,7 +111,7 @@ export default function Usuarios() {
                     type="text"
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder="Buscar por nombre o email..."
+                    placeholder="Buscar por nombre, email o teléfono..."
                     className="flex-1 bg-[#222222] text-blanco text-sm border border-white/10 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-verde-principal placeholder:text-gray-500"
                 />
                 <GlideSelect
@@ -152,6 +152,7 @@ export default function Usuarios() {
                                     <tr className="text-left text-gray-400 border-b border-white/5">
                                         <th className="px-5 py-3 font-medium">Nombre</th>
                                         <th className="px-5 py-3 font-medium">Email</th>
+                                        <th className="px-5 py-3 font-medium">Teléfono</th>
                                         <th className="px-5 py-3 font-medium">Rol</th>
                                         <th className="px-5 py-3 font-medium">Estado</th>
                                         <th className="px-5 py-3 font-medium"></th>
@@ -166,6 +167,9 @@ export default function Usuarios() {
                                                     {formatNombreCompleto(u.nombre, u.apellido)}
                                                 </td>
                                                 <td className="px-5 py-3 text-gray-300">{u.email}</td>
+                                                <td className="px-5 py-3 text-gray-300 whitespace-nowrap">
+                                                    {u.telefono || <span className="text-gray-500">—</span>}
+                                                </td>
                                                 <td className="px-5 py-3">
                                                     <span className={`text-xs font-medium px-3 py-1 rounded-full ${rolStyles[u.rol] || ''}`}>
                                                         {u.rol === 'USUARIO' ? 'usuario' : u.rol.toLowerCase()}
@@ -213,6 +217,9 @@ export default function Usuarios() {
                                             </span>
                                         </div>
                                         <p className="text-gray-400 text-xs mb-2">{u.email}</p>
+                                        {u.telefono && (
+                                            <p className="text-gray-400 text-xs mb-2">{u.telefono}</p>
+                                        )}
                                         <div className="flex items-center justify-between">
                                             <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${rolStyles[u.rol] || ''}`}>
                                                 {u.rol === 'USUARIO' ? 'usuario' : u.rol.toLowerCase()}

@@ -20,6 +20,8 @@ export async function listUsers(req, res) {
       { nombre: { contains: String(buscar), mode: "insensitive" } },
       { apellido: { contains: String(buscar), mode: "insensitive" } },
       { email: { contains: String(buscar), mode: "insensitive" } },
+      // El teléfono se muestra en la tabla, así que tiene que ser buscable.
+      { telefono: { contains: String(buscar).replace(/[\s()-]/g, "") } },
     ];
   }
 

@@ -28,6 +28,15 @@ function validarEmail(v) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return 'El email no tiene un formato válido.';
     return null;
 }
+// Espeja la normalización del backend (`registerUsuario.validarTelefono`):
+// se aceptan espacios, guiones y paréntesis, pero el valor final tiene que ser
+// de 7 a 15 dígitos con un `+` inicial opcional.
+function validarTelefono(v) {
+    const t = String(v ?? '').trim().replace(/[\s()-]/g, '');
+    if (!t) return 'El teléfono es obligatorio.';
+    if (!/^\+?[0-9]{7,15}$/.test(t)) return 'Ingresá entre 7 y 15 dígitos.';
+    return null;
+}
 function validarPassword(v) {
     if (!v) return 'La contraseña es obligatoria.';
     if (v.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
@@ -485,6 +494,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     const [nombre, setNombre] = useState('');
     const [apellido, setApellido] = useState('');
     const [email, setEmail] = useState('');
+    const [telefono, setTelefono] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [errors, setErrors] = useState({});
@@ -503,6 +513,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
             nombre: validarNombre(nombre),
             apellido: validarApellido(apellido),
             email: validarEmail(email),
+            telefono: validarTelefono(telefono),
             password: validarPassword(password),
             confirmPassword: validarConfirm(confirmPassword, password),
         };
@@ -573,6 +584,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                     nombre,
                     apellido,
                     email,
+                    telefono,
                     password,
                     confirmPassword,
                 },
@@ -635,6 +647,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
         !!errors.nombre ||
         !!errors.apellido ||
         !!errors.email ||
+        !!errors.telefono ||
         !!errors.password ||
         !!errors.confirmPassword;
 
@@ -654,6 +667,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                             <CampoTextoMobile label="Nombre" value={nombre} onChange={setNombre} error={errors.nombre} placeholder="Juan" autoComplete="given-name" />
                             <CampoTextoMobile label="Apellido" value={apellido} onChange={setApellido} error={errors.apellido} placeholder="Pérez" autoComplete="family-name" />
                             <CampoTextoMobile label="Correo electrónico" type="email" value={email} onChange={setEmail} error={errors.email} placeholder="usuario@email.com" autoComplete="email" />
+                            <CampoTextoMobile label="Teléfono" type="tel" value={telefono} onChange={setTelefono} error={errors.telefono} placeholder="Ej.: +54 9 221 1234567" autoComplete="tel" />
                             <CampoTextoMobile label="Contraseña" type="password" value={password} onChange={setPassword} error={errors.password} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
                             <CampoTextoMobile label="Confirmar contraseña" type="password" value={confirmPassword} onChange={setConfirmPassword} error={errors.confirmPassword} placeholder="Repetí tu contraseña" autoComplete="new-password" />
 
@@ -726,6 +740,15 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                                 error={errors.email}
                                 placeholder="usuario@email.com"
                                 autoComplete="email"
+                            />
+                            <CampoTexto
+                                label="Teléfono"
+                                type="tel"
+                                value={telefono}
+                                onChange={setTelefono}
+                                error={errors.telefono}
+                                placeholder="Ej.: +54 9 221 1234567"
+                                autoComplete="tel"
                             />
                             <CampoTexto
                                 label="Contraseña"

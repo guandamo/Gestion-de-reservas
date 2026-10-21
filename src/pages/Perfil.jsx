@@ -50,8 +50,10 @@ export default function Perfil() {
         setGuardandoPerfil(true);
 
         try {
-            const { nombre, apellido, telefono } = perfil;
-            const data = await api.patch('/auth/me', { nombre, apellido, telefono });
+            // Solo viajan los campos editables. `telefono` e `email` son de solo
+            // lectura: mandarlos acá los haría rebotar con un 400 del backend.
+            const { nombre, apellido } = perfil;
+            const data = await api.patch('/auth/me', { nombre, apellido });
             setPerfil({
                 nombre: data.usuario.nombre ?? '',
                 apellido: data.usuario.apellido ?? '',
@@ -99,7 +101,7 @@ export default function Perfil() {
                     <Field label="Nombre" name="nombre" value={perfil.nombre} onChange={handlePerfilChange} required />
                     <Field label="Apellido" name="apellido" value={perfil.apellido} onChange={handlePerfilChange} required />
                     <Field label="Correo electrónico" name="email" type="email" value={perfil.email} readOnly hint="El correo electrónico no se puede modificar." />
-                    <Field label="Teléfono" name="telefono" type="tel" value={perfil.telefono} onChange={handlePerfilChange} placeholder="Ej.: +5492211234567" />
+                    <Field label="Teléfono" name="telefono" type="tel" value={perfil.telefono} readOnly hint="El teléfono se carga al registrarse y no se puede modificar." />
                 </div>
 
                 {errorPerfil && <p className="mt-4 text-sm text-red-300">{errorPerfil}</p>}

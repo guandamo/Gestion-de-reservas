@@ -34,12 +34,13 @@ export async function login(req, res) {
 
 /**
  * POST /api/auth/register
- * Body: { nombre, apellido, email, password, confirmPassword }
+ * Body: { nombre, apellido, email, telefono, password, confirmPassword }
  */
 export async function register(req, res) {
-  const { nombre, apellido, email, password, confirmPassword } = req.body ?? {};
+  const { nombre, apellido, email, telefono, password, confirmPassword } =
+    req.body ?? {};
 
-  if (!nombre || !apellido || !email || !password || !confirmPassword) {
+  if (!nombre || !apellido || !email || !telefono || !password || !confirmPassword) {
     return res.status(400).json({ error: "Faltan campos obligatorios." });
   }
 
@@ -47,6 +48,7 @@ export async function register(req, res) {
     nombre,
     apellido,
     email,
+    telefono,
     password,
     confirmPassword,
   });

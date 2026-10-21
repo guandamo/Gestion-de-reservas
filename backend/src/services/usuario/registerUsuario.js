@@ -15,6 +15,7 @@ import { createAuditLog } from "../audit/createAuditLog.js";
  * @param {string} input.nombre
  * @param {string} input.apellido
  * @param {string} input.email
+ * @param {string} input.telefono  obligatorio; se guarda normalizado (solo dígitos, con `+` inicial opcional)
  * @param {string} input.password
  * @param {string} input.confirmPassword
  */
@@ -22,6 +23,7 @@ export async function registerUsuario({
   nombre,
   apellido,
   email,
+  telefono,
   password,
   confirmPassword,
 } = {}) {
@@ -39,6 +41,12 @@ export async function registerUsuario({
   if (!esEmailValido(emailNormalizado)) {
     throw new HttpError(400, "El email no tiene un formato válido.");
   }
+
+  // El teléfono es obligatorio en el alta. No se puede cambiar después desde
+  // el perfil (ver `perfilUsuario.js`), así que es el único momento en que el
+  // usuario puede cargarlo: si se lo pasa por alto, queda con `null` para
+  // siempre.
+  const telefonoNormalizado = validarTelefono(telefono);
 
   if (typeof password !== "string" || password.length < 8) {
     throw new HttpError(
@@ -62,6 +70,19 @@ export async function registerUsuario({
     );
   }
 
+  // `Usuario.telefono` es UNIQUE en el esquema. Sin este chequeo explícito
+  // el error que sube desde Postgres sería un P2002 genérico ("Unique constraint
+  // failed"), que el frontend no sabe explicar.
+  const telefonoTomado = await prisma.usuario.findUnique({
+    where: { telefono: telefonoNormalizado },
+  });
+  if (telefonoTomado) {
+    throw new HttpError(
+      409,
+      "Ese teléfono ya está asociado a otra cuenta.",
+    );
+  }
+
   // 3) Hash + creación
   const contrasenaHash = await bcrypt.hash(password, 10);
 
@@ -71,6 +92,7 @@ export async function registerUsuario({
         nombre: nombreOk.value,
         apellido: apellidoOk.value,
         email: emailNormalizado,
+        telefono: telefonoNormalizado,
         contrasena: contrasenaHash,
         rol: "USUARIO",
         activo: true,
@@ -151,4 +173,27 @@ function validarApellido(apellido) {
 
 function esEmailValido(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/**
+ * Normaliza el teléfono a solo dígitos (con `+` inicial opcional) para poder
+ * guardarlo sin espacios ni guiones.
+ *
+ * Se aceptan los separadores que la gente escribe a mano (espacios, `-`, `()`)
+ * y se guardan eliminados, así "11 (221) 123-4567" y "112214534567" terminan
+ * como el mismo valor y no el mismo usuario duplicado en el UNIQUE.
+ */
+function validarTelefono(valor) {
+  if (valor == null || (typeof valor === "string" && !valor.trim())) {
+    throw new HttpError(400, "El teléfono es obligatorio.");
+  }
+  if (typeof valor !== "string") {
+    throw new HttpError(400, "El teléfono no es válido.");
+  }
+
+  const telefono = valor.trim().replace(/[\s()-]/g, "");
+  if (!/^\+?[0-9]{7,15}$/.test(telefono)) {
+    throw new HttpError(400, "El teléfono debe tener entre 7 y 15 dígitos.");
+  }
+  return telefono;
 }

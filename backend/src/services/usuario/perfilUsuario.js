@@ -33,6 +33,21 @@ export async function actualizarPerfil(idUsuario, input = {}) {
     throw new HttpError(400, "El correo electrónico no se puede modificar desde el perfil.");
   }
 
+  // El teléfono se carga UNA vez, en el registro, y después queda fijo: es el
+  // contacto con el que el club llega al usuario si le cambia un turno. Por eso
+  // se muestra en el perfil pero no se edita acá.
+  //
+  // Se rechaza explícitamente (igual que el email) en vez de ignorar la clave
+  // en silencio: si el cliente mandara un teléfono distinto por error, un 400
+  // dice qué pasó, mientras que un `delete` silencioso lo borra y el usuario
+  // se queda sin contacto creyendo que lo guardó.
+  if (
+    Object.hasOwn(input, "telefono") &&
+    (input.telefono ?? null) !== (usuarioActual.telefono ?? null)
+  ) {
+    throw new HttpError(400, "El teléfono no se puede modificar desde el perfil.");
+  }
+
   const data = {};
 
   if (Object.hasOwn(input, "nombre")) {
@@ -41,17 +56,9 @@ export async function actualizarPerfil(idUsuario, input = {}) {
   if (Object.hasOwn(input, "apellido")) {
     data.apellido = validarNombre(input.apellido, "El apellido");
   }
-  if (Object.hasOwn(input, "telefono")) {
-    data.telefono = validarTelefono(input.telefono);
-  }
 
   if (Object.keys(data).length === 0) {
     throw new HttpError(400, "Ingresá al menos un dato para actualizar.");
-  }
-
-  if (data.telefono && data.telefono !== usuarioActual.telefono) {
-    const existente = await prisma.usuario.findUnique({ where: { telefono: data.telefono } });
-    if (existente) throw new HttpError(409, "Ese teléfono ya está asociado a otra cuenta.");
   }
 
   const actualizado = await prisma.$transaction(async (tx) => {
@@ -138,15 +145,4 @@ function validarNombre(valor, etiqueta) {
     throw new HttpError(400, `${etiqueta} debe tener entre 2 y 50 caracteres.`);
   }
   return limpio;
-}
-
-function validarTelefono(valor) {
-  if (valor == null || valor === "") return null;
-  if (typeof valor !== "string") throw new HttpError(400, "El teléfono no es válido.");
-
-  const telefono = valor.replace(/[\s()-]/g, "");
-  if (!/^\+?[0-9]{7,15}$/.test(telefono)) {
-    throw new HttpError(400, "El teléfono debe tener entre 7 y 15 dígitos.");
-  }
-  return telefono;
 }
