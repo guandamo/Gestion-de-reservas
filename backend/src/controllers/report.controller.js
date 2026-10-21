@@ -49,7 +49,9 @@ export async function getReports(req, res) {
 
   return res.json({
     periodo: { desde, hasta, mes: mes ?? null },
-    reservasHoy: reservasEnMes.filter((r) => isToday(r.fechaAlta)).length,
+    reservasHoy: reservasEnMes.filter(
+      (r) => isToday(r.fechaAlta) && r.estado === "CONFIRMADA",
+    ).length,
     ocupacionHoy,
     turnosHoy,
     turnosReservadosHoy,
@@ -112,7 +114,6 @@ export async function exportReports(req, res) {
   const totalIngresos = pagos
     .filter((p) => p.estado === "PAGADO")
     .reduce((acc, p) => acc + Number(p.monto), 0);
-  const pagosPendientes = pagos.filter((p) => p.estado === "PENDIENTE").length;
   const confirmadas = reservas.filter((r) => r.estado === "CONFIRMADA").length;
   const canceladas = reservas.filter((r) => r.estado === "CANCELADA").length;
 
@@ -123,7 +124,6 @@ export async function exportReports(req, res) {
     .text(`  · Confirmadas: ${confirmadas}`)
     .text(`  · Canceladas: ${canceladas}`)
     .text(`Pagos registrados: ${pagos.length}`)
-    .text(`Pagos pendientes: ${pagosPendientes}`)
     .text(`Ingresos del período (pagados): $${formatMoney(totalIngresos)}`)
     .moveDown();
 

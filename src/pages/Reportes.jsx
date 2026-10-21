@@ -84,21 +84,18 @@ export default function Reportes() {
         stats.reservasEnMes > 0 ||
         stats.turnosHoy > 0 ||
         stats.ingresosMes > 0 ||
-        stats.pagosMes > 0 ||
-        stats.pagosPendientes > 0
+        stats.pagosMes > 0
     );
 
-    const mesesDisponibles = (() => {
-        const out = [];
-        const d = new Date();
-        for (let i = 0; i < 6; i++) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            out.push(`${y}-${m}`);
-            d.setMonth(d.getMonth() - 1);
-        }
-        return out;
-    })();
+    // Rango fijo de meses disponibles: julio a diciembre 2026.
+    const mesesDisponibles = [
+        '2026-07',
+        '2026-08',
+        '2026-09',
+        '2026-10',
+        '2026-11',
+        '2026-12',
+    ];
 
     return (
         <>
@@ -159,7 +156,7 @@ export default function Reportes() {
                         {/* KPIs 2x2 */}
                         <div className="grid grid-cols-2 gap-3">
                             <MobileKpiCard
-                                titulo="Reservas hoy"
+                                titulo="Reservas confirmadas hoy"
                                 valor={stats?.reservasHoy ?? 0}
                                 subtitulo={stats?.variacionReservasHoy != null
                                     ? `${stats.variacionReservasHoy >= 0 ? '+' : ''}${stats.variacionReservasHoy} vs ayer`
@@ -183,12 +180,6 @@ export default function Reportes() {
                                 valor={ingresosDisplay}
                                 subtitulo={`Meta: ${formatMontoCorto(stats?.metaMes ?? 1_500_000)}`}
                                 accent="verde"
-                            />
-                            <MobileKpiCard
-                                titulo="Pagos pendientes"
-                                valor={stats?.pagosPendientes ?? 0}
-                                subtitulo="Requieren acción"
-                                accent="amarillo"
                             />
                         </div>
 
@@ -262,9 +253,9 @@ export default function Reportes() {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                     <StatCard
-                        label="Reservas hoy"
+                        label="Reservas confirmadas hoy"
                         value={stats?.reservasHoy ?? 0}
                         sub={
                             <span className="text-gray-400">
@@ -292,11 +283,6 @@ export default function Reportes() {
                                 {stats?.pagosMes ?? 0} pago(s) confirmado(s)
                             </span>
                         }
-                    />
-                    <StatCard
-                        label="Pagos pendientes"
-                        value={stats?.pagosPendientes ?? 0}
-                        sub={<span className="text-yellow-400">Requieren acción</span>}
                     />
                 </div>
 
