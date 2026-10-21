@@ -1,9 +1,16 @@
 # Despliegue en Render
 
 Documento operacional para que vos o quien opere el servicio pueda replicar el
-despliegue paso a paso, **a mano desde el Dashboard de Render**. La
-configuración declarativa equivalente está en `render.yaml` (la podés aplicar
-con "New Blueprint Instance" cuando quieras versionar este setup).
+despliegue paso a paso, **a mano desde el Dashboard de Render**.
+
+> **La configuración vive únicamente en el Dashboard.** Este documento es la
+> referencia de qué tiene que haber en cada servicio. No hay un `render.yaml` en
+> el repo a propósito: si lo hubiera y alguien lo aplicara con "New Blueprint
+> Instance", Render crearía servicios nuevos con nombres y dominios que no son
+> los reales, y con `CORS_ORIGINS` / `FRONTEND_URL` apuntando a un dominio que
+> no existe. Si algún día se quiere versionar la config, primero hay que
+> corregir los nombres de servicio y las URLs para que coincidan con los
+> desplegados.
 
 > Antes de tocar Render, asegurate de haber commiteado y pusheado los cambios
 > de la rama `fix/pagos-reservas-produccion` hacia `origin`. Render arma la

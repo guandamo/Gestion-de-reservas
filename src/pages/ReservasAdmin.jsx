@@ -21,6 +21,8 @@ export default function ReservasAdmin() {
     const [reservas, setReservas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [mensaje, setMensaje] = useState('');
+    const [cancelandoId, setCancelandoId] = useState(null);
 
     async function cargar() {
         try {
@@ -40,6 +42,51 @@ export default function ReservasAdmin() {
         cargar();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [estado]);
+
+    /**
+     * Cancelación desde el panel. Usa la misma ruta que el usuario
+     * (`PATCH /reservations/:id/cancel`); el backend permite que el ADMIN
+     * cancele también una reserva CONFIRMADA, que el usuario no puede.
+     *
+     * Cancelar una CONFIRMADA deja el `Pago` en PAGADO: el dinero entró y NO
+     * se devuelve solo. Por eso el aviso es explícito, para que nadie lo
+     * descubra después.
+     */
+    async function handleCancelar(r) {
+        const nombre = r.usuario ? `${r.usuario.nombre} ${r.usuario.apellido}` : 'el usuario';
+        const pagada = r.estado === 'CONFIRMADA';
+
+        const confirmacion = pagada
+            ? `La reserva #${r.id} de ${nombre} ya está PAGADA.\n\n` +
+              `Si la cancelás, el turno vuelve a estar disponible y el pago queda ` +
+              `registrado como cobrado.\n\n` +
+              `NO se devuelve la plata automáticamente: el reembolso hay que ` +
+              `gestionarlo a mano con el usuario.\n\n¿Cancelar igual?`
+            : `¿Cancelar la reserva #${r.id} de ${nombre}?\n\nEl turno vuelve a estar disponible.`;
+
+        if (!window.confirm(confirmacion)) return;
+
+        try {
+            setCancelandoId(r.id);
+            setError('');
+            setMensaje('');
+
+            const data = await api.patch(`/reservations/${r.id}/cancel`);
+
+            setMensaje(
+                data?.resultado === 'ya_cancelada'
+                    ? `La reserva #${r.id} ya estaba cancelada.`
+                    : `Reserva #${r.id} cancelada. El turno vuelve a estar disponible.` +
+                      (pagada ? ' Recordá gestionar el reembolso del pago.' : ''),
+            );
+
+            await cargar();
+        } catch (err) {
+            setError(err.message || 'No se pudo cancelar la reserva.');
+        } finally {
+            setCancelandoId(null);
+        }
+    }
 
     const resumen = {
         total: reservas.length,
@@ -82,9 +129,27 @@ export default function ReservasAdmin() {
                 />
             </div>
 
+            {/*
+              El total de ingresos cuenta las reservas NO canceladas. Si el
+              admin cancela una CONFIRMADA, el pago sigue en PAGADO (el dinero
+              entró) pero el total baja. Conviene que quede dicho, o parece un
+              bug de la pantalla.
+            */}
+            <p className="-mt-3 text-xs text-gray-500">
+                Los ingresos suman las reservas no canceladas. Si cancelás una
+                reserva ya pagada, el total baja igual: el pago queda cobrado y
+                el reembolso se gestiona a mano.
+            </p>
+
             {error && (
                 <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg">
                     {error}
+                </div>
+            )}
+
+            {mensaje && (
+                <div className="bg-green-500/20 border border-green-500/50 text-green-300 text-sm p-3 rounded-lg">
+                    {mensaje}
                 </div>
             )}
 
@@ -109,7 +174,12 @@ export default function ReservasAdmin() {
                         {/* Vista mobile: cards */}
                         <div className="md:hidden flex flex-col divide-y divide-white/5">
                             {reservas.map((r) => (
-                                <ReservaMobile key={r.id} reserva={r} />
+                                <ReservaMobile
+                                    key={r.id}
+                                    reserva={r}
+                                    cancelando={cancelandoId === r.id}
+                                    onCancelar={handleCancelar}
+                                />
                             ))}
                         </div>
 
@@ -125,6 +195,7 @@ export default function ReservasAdmin() {
                                         <th className="px-5 py-3 font-medium">Horario</th>
                                         <th className="px-5 py-3 font-medium">Precio</th>
                                         <th className="px-5 py-3 font-medium">Estado</th>
+                                        <th className="px-5 py-3 font-medium text-right">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -163,6 +234,13 @@ export default function ReservasAdmin() {
                                                     {LABEL_ESTADO[r.estado] ?? r.estado}
                                                 </span>
                                             </td>
+                                            <td className="px-5 py-3 text-right">
+                                                <BotonCancelar
+                                                    reserva={r}
+                                                    cancelando={cancelandoId === r.id}
+                                                    onCancelar={handleCancelar}
+                                                />
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -184,7 +262,7 @@ function ResumenCard({ label, value, color = 'text-blanco' }) {
     );
 }
 
-function ReservaMobile({ reserva }) {
+function ReservaMobile({ reserva, cancelando, onCancelar }) {
     return (
         <div className="p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -205,10 +283,45 @@ function ReservaMobile({ reserva }) {
             <div className="text-sm text-gray-300">
                 {formatearFechaCorta(reserva.turno.fecha)} · {reserva.turno.horaInicio} - {reserva.turno.horaFin}
             </div>
-            <div className="text-sm text-blanco font-bold">
-                ${Number(reserva.turno.precio).toLocaleString('es-AR')}
+            <div className="flex items-center justify-between">
+                <span className="text-sm text-blanco font-bold">
+                    ${Number(reserva.turno.precio).toLocaleString('es-AR')}
+                </span>
+                <BotonCancelar
+                    reserva={reserva}
+                    cancelando={cancelando}
+                    onCancelar={onCancelar}
+                />
             </div>
         </div>
+    );
+}
+
+/**
+ * Botón "Cancelar" de una reserva.
+ *
+ * Sólo aparece en PENDIENTE y CONFIRMADA: una CANCELADA ya no se puede volver
+ * a cancelar y el backend responde "ya cancelada", así que no tiene sentido
+ * ofrecerlo.
+ */
+function BotonCancelar({ reserva, cancelando, onCancelar }) {
+    if (reserva.estado === 'CANCELADA') return null;
+
+    const pagada = reserva.estado === 'CONFIRMADA';
+
+    return (
+        <button
+            type="button"
+            onClick={() => onCancelar(reserva)}
+            disabled={cancelando}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition disabled:opacity-60 ${
+                pagada
+                    ? 'bg-red-500/10 border-red-500/40 text-red-300 hover:bg-red-500/20'
+                    : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-blanco'
+            }`}
+        >
+            {cancelando ? 'Cancelando…' : 'Cancelar'}
+        </button>
     );
 }
 

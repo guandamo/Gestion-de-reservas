@@ -31,10 +31,21 @@ async function leerYValidar(db, reservaId, idUsuario) {
     return { usuario, reserva };
   }
 
-  if (
-    reserva.estado !== "PENDIENTE" ||
-    reserva.pago?.estado === "PAGADO"
-  ) {
+  // Un USUARIO sólo cancela reservas pendientes de pago: si ya pagó, el
+  // turno es suyo. Un ADMIN además puede cancelar una CONFIRMADA — es lo que
+  // necesita el panel para dar de baja una reserva pagada y liberar el turno.
+  //
+  // El `Pago` queda en PAGADO: el dinero entró de verdad. El reembolso no es
+  // automático (no hay integración de refunds), así que se sigue por el
+  // AuditLog, que registra `pagoReembolsado: false`.
+  const cancelablePorAdmin =
+    reserva.estado === "PENDIENTE" || reserva.estado === "CONFIRMADA";
+
+  if (esAdmin) {
+    if (!cancelablePorAdmin) {
+      throw new HttpError(409, "Esta reserva no se puede cancelar.");
+    }
+  } else if (reserva.estado !== "PENDIENTE" || reserva.pago?.estado === "PAGADO") {
     throw new HttpError(409, "Una reserva pagada no se puede cancelar.");
   }
 
@@ -78,8 +89,17 @@ export async function cancelarReserva({ idReserva, idUsuario } = {}) {
     };
   }
 
-  // Si se confirma un pago aquí, queda guardado aunque se rechace cancelar.
-  await verificarPagoParaCancelar(previa.reserva.pago);
+  // `verificarPagoParaCancelar` consulta Mercado Pago para detectar un pago
+  // aprobado cuyo webhook nunca llegó. Sólo tiene sentido para una reserva
+  // PENDIENTE: si ya está CONFIRMADA el pago está cobrado y el admin está
+  // cancelando a propósito. Además el servicio rechaza explícitamente los
+  // pagos en estado PAGADO, así que llamarlo acá bloquearía la cancelación
+  // que el panel necesita.
+  const reservaYaPagada = previa.reserva.estado === "CONFIRMADA";
+
+  if (!reservaYaPagada) {
+    await verificarPagoParaCancelar(previa.reserva.pago);
+  }
 
   return prisma.$transaction(async (tx) => {
     const { usuario, reserva } = await leerYValidar(
@@ -104,12 +124,23 @@ export async function cancelarReserva({ idReserva, idUsuario } = {}) {
       );
     }
 
+    // Si la reserva estaba PENDIENTE en la lectura previa y el webhook la
+    // confirmó entre medio, la verificación con Mercado Pago de arriba se
+    // salteó y no podemos garantizar el estado real del pago. Se rechaza
+    // para que el panel recargue y el admin vea el estado nuevo.
+    if (reserva.estado === "CONFIRMADA" && !reservaYaPagada) {
+      throw new HttpError(
+        409,
+        "La reserva se acaba de confirmar. Actualizá la lista.",
+      );
+    }
+
     const ahora = new Date();
 
     const actualizada = await tx.reserva.updateMany({
       where: {
         id: reserva.id,
-        estado: "PENDIENTE",
+        estado: { in: ["PENDIENTE", "CONFIRMADA"] },
       },
       data: {
         estado: "CANCELADA",
@@ -143,7 +174,12 @@ export async function cancelarReserva({ idReserva, idUsuario } = {}) {
     await createAuditLog({
       entity: "Reserva",
       entityId: reserva.id,
-      operation: "CANCEL_RESERVATION",
+      // Se distingue la cancelación administrativa de una reserva pagada de
+      // la cancelación normal: es la única que deja plata cobrada sin turno,
+      // y por eso tiene que poder filtrarse en el historial.
+      operation: reserva.estado === "CONFIRMADA"
+        ? "ADMIN_CANCEL_CONFIRMED_RESERVATION"
+        : "CANCEL_RESERVATION",
       performedBy: idUsuario,
       oldValues: {
         estado: reserva.estado,
@@ -154,6 +190,9 @@ export async function cancelarReserva({ idReserva, idUsuario } = {}) {
         rolCancelador: usuario.rol,
         cancelledAt: ahora.toISOString(),
         turnoLiberado: !otraActiva,
+        // El `Pago` queda en PAGADO a propósito: no hay reembolso automático.
+        // Si alguna vez lo hay, este flag es el que lo registra.
+        ...(reserva.estado === "CONFIRMADA" ? { pagoReembolsado: false } : {}),
       },
       tx,
     });
