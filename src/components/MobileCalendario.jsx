@@ -7,6 +7,7 @@ import {
     generarHorarios,
     formatearDiaLargo,
     formatearFechaCortaConAnio,
+    hoyEnArgentina,
 } from './calendario/utils.js';
 
 /**
@@ -187,12 +188,12 @@ export default function MobileCalendario({
     };
 
     const irAHoy = () => {
-        const hoy = new Date().toISOString().slice(0, 10);
+        const hoy = hoyEnArgentina();
         const idx = fechasDisponibles.indexOf(hoy);
         if (idx >= 0) setIndiceFecha(idx);
     };
 
-    const hoyISO = new Date().toISOString().slice(0, 10);
+    const hoyISO = hoyEnArgentina();
     const hayHoyEnLista = fechasDisponibles.indexOf(hoyISO) >= 0;
 
     // Subtítulo: "Lunes 8 de Junio · Cancha 1"

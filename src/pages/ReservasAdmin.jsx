@@ -385,5 +385,14 @@ function BotonCancelar({ reserva, cancelando, onCancelar }) {
 function formatearFechaCorta(fecha) {
     if (!fecha) return '—';
     const d = new Date(fecha);
-    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    // El backend manda la fecha del turno como `Turno.fecha`, una columna `date`
+    // que Prisma serializa a medianoche UTC ("2026-10-26T00:00:00.000Z"). Sin
+    // `timeZone: 'UTC'` el navegador argentino la lee como 25/10 a las 21:00 y
+    // muestra el día anterior. Mismo criterio que MisReservas y ResultadoPago.
+    return d.toLocaleDateString('es-AR', {
+        timeZone: 'UTC',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
 }

@@ -92,3 +92,19 @@ export function formatearDiaLargo(fecha) {
     const raw = d.toLocaleDateString('es-AR', { weekday: 'long' });
     return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
+
+/**
+ * El día de HOY en Argentina, como "YYYY-MM-DD".
+ *
+ * `new Date().toISOString().slice(0, 10)` devuelve la fecha en UTC: entre las
+ * 21:00 y las 24:00 de Argentina ya es el día siguiente, así que "ir a hoy" y el
+ * resaltado del día corriente dejaban de encontrarlo. El locales de Argentina
+ * va 3h atrás de UTC.
+ *
+ * `en-CA` formatea como YYYY-MM-DD, que es justo lo que espera el backend.
+ */
+export function hoyEnArgentina() {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+    }).format(new Date());
+}
