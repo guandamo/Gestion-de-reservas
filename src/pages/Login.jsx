@@ -50,6 +50,38 @@ function validarConfirm(v, password) {
     return null;
 }
 
+/**
+ * Calcula el error de cada campo del formulario de registro.
+ *
+ * Es una función pura y sin estado a propósito. `RegisterView` deriva los
+ * errores en cada render a partir de estos mismos valores, de modo que el
+ * mensaje en rojo y el `disabled` del botón no pueden quedar desfasados de lo
+ * que el usuario efectivamente escribió.
+ *
+ * Antes los errores vivían en un `useState` y había que reponerlos a mano en
+ * cada `onChange`. Ese acoplamiento era la causa del bloqueo: si un solo camino
+ * se olvidaba de actualizar el estado, el error quedaba congelado y el botón
+ * "Crear cuenta" inutilizable para siempre, sin forma de recuperarse salvo
+ * recargar la página. Derivarlo deja de ser posible que eso ocurra.
+ */
+function erroresDeCampos({
+    nombre,
+    apellido,
+    email,
+    telefono,
+    password,
+    confirmPassword,
+}) {
+    return {
+        nombre: validarNombre(nombre),
+        apellido: validarApellido(apellido),
+        email: validarEmail(email),
+        telefono: validarTelefono(telefono),
+        password: validarPassword(password),
+        confirmPassword: validarConfirm(confirmPassword, password),
+    };
+}
+
 
 function normalizarEmail(v) {
     return String(v ?? '').trim().toLowerCase();
@@ -499,7 +531,10 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     const [telefono, setTelefono] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [errors, setErrors] = useState({});
+    // `true` desde el primer intento de envío. Antes de eso no se muestra
+    // ningún error (los campos no se marcan mientras se completa el formulario);
+    // a partir de ahí los errores se derivan en cada render.
+    const [enviado, setEnviado] = useState(false);
     const [serverError, setServerError] = useState('');
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
@@ -507,26 +542,54 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     const [modalLoading, setModalLoading] = useState(false);
     const checkControllerRef = useRef(null);
     const registerControllerRef = useRef(null);
+    // Campo al que pertenece el error general del backend. Permite limpiarlo
+    // cuando el usuario edita justamente ese campo, sin borrar a ciegas un
+    // aviso que no tiene que ver con lo que está escribiendo.
+    const serverErrorCampoRef = useRef(null);
 
     const { register } = useAuth();
 
+    const campos = {
+        nombre,
+        apellido,
+        email,
+        telefono,
+        password,
+        confirmPassword,
+    };
+
+    // Derivado, nunca almacenado: refleja siempre los valores actuales.
+    const errors = enviado ? erroresDeCampos(campos) : {};
+
+    const mostrarServerError = (mensaje, campo = null) => {
+        serverErrorCampoRef.current = campo;
+        setServerError(mensaje);
+    };
+
+    const limpiarServerError = () => {
+        serverErrorCampoRef.current = null;
+        setServerError('');
+    };
+
+    // Único `onChange` del formulario: guarda el valor. La revalidación no
+    // hace falta acá porque `errors` se recalcula solo en el siguiente render.
+    const alCambiar = (campo, setValor) => (valor) => {
+        setValor(valor);
+
+        if (serverErrorCampoRef.current === campo) {
+            limpiarServerError();
+        }
+    };
+
     const validarTodo = () => {
-        const next = {
-            nombre: validarNombre(nombre),
-            apellido: validarApellido(apellido),
-            email: validarEmail(email),
-            telefono: validarTelefono(telefono),
-            password: validarPassword(password),
-            confirmPassword: validarConfirm(confirmPassword, password),
-        };
-        setErrors(next);
-        return Object.values(next).every((e) => !e);
+        setEnviado(true);
+        return Object.values(erroresDeCampos(campos)).every((e) => !e);
     };
 
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setServerError('');
+        limpiarServerError();
         if (!validarTodo()) return;
 
         if (checkControllerRef.current) {
@@ -541,8 +604,9 @@ function RegisterView({ onSwitchToLogin, navigate }) {
             if (controller.signal.aborted) return;
 
             if (existe) {
-                setServerError(
+                mostrarServerError(
                     'Ya existe una cuenta registrada con ese correo electrónico.',
+                    'email',
                 );
                 return;
             }
@@ -551,16 +615,26 @@ function RegisterView({ onSwitchToLogin, navigate }) {
         } catch (err) {
             if (err?.name === 'AbortError') return;
             if (err instanceof NetworkError) {
-                setServerError(
+                mostrarServerError(
                     'No pudimos verificar tu correo. Revisá tu conexión e intentá de nuevo.',
                 );
-            } else if (err instanceof ApiError && err.status >= 400) {
-                setServerError(
+            } else if (err instanceof ApiError && err.status >= 500) {
+                // Fallo de infraestructura: no corresponde a ningún campo, así
+                // que se queda visible hasta que se reintente el envío.
+                mostrarServerError(
                     err.message ||
                     'No pudimos validar el formulario. Intentá de nuevo en unos minutos.',
                 );
+            } else if (err instanceof ApiError && err.status >= 400) {
+                // Error de datos: se ancla al email para que se limpie solo
+                // cuando el usuario lo corrija.
+                mostrarServerError(
+                    err.message ||
+                    'No pudimos validar el formulario. Revisá los datos e intentá de nuevo.',
+                    'email',
+                );
             } else {
-                setServerError(
+                mostrarServerError(
                     err?.message || 'No pudimos validar el formulario.',
                 );
             }
@@ -606,7 +680,12 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                     'No pudimos crear tu cuenta. Revisá tu conexión e intentá de nuevo.',
                 );
             } else if (err instanceof ApiError && err.status === 409) {
+                // El backend responde 409 tanto por email repetido como por
+                // teléfono ya asociado (`registerUsuario.js`), cada uno con su
+                // propio mensaje. Mostrar siempre el de correo tapaba el caso
+                // del teléfono.
                 setModalError(
+                    err.message ||
                     'Ese correo ya fue registrado mientras completabas el código. Volvé a iniciar sesión.',
                 );
             } else if (err instanceof ApiError && err.status >= 400) {
@@ -645,13 +724,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
     );
 
 
-    const hayErroresVisibles =
-        !!errors.nombre ||
-        !!errors.apellido ||
-        !!errors.email ||
-        !!errors.telefono ||
-        !!errors.password ||
-        !!errors.confirmPassword;
+    const hayErroresVisibles = Object.values(errors).some((e) => !!e);
 
     return (
         <>
@@ -666,12 +739,12 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                 <div className="flex-1 px-5 -mt-8 pb-8">
                     <div className="bg-[#222222] rounded-2xl border border-white/5 shadow-2xl p-6 space-y-4">
                         <form onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
-                            <CampoTextoMobile label="Nombre" value={nombre} onChange={setNombre} error={errors.nombre} placeholder="Juan" autoComplete="given-name" />
-                            <CampoTextoMobile label="Apellido" value={apellido} onChange={setApellido} error={errors.apellido} placeholder="Pérez" autoComplete="family-name" />
-                            <CampoTextoMobile label="Correo electrónico" type="email" value={email} onChange={setEmail} error={errors.email} placeholder="usuario@email.com" autoComplete="email" />
-                            <CampoTextoMobile label="Teléfono" type="tel" value={telefono} onChange={setTelefono} error={errors.telefono} placeholder="Ej.: +54 9 221 1234567" autoComplete="tel" />
-                            <CampoTextoMobile label="Contraseña" type="password" value={password} onChange={setPassword} error={errors.password} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
-                            <CampoTextoMobile label="Confirmar contraseña" type="password" value={confirmPassword} onChange={setConfirmPassword} error={errors.confirmPassword} placeholder="Repetí tu contraseña" autoComplete="new-password" />
+                            <CampoTextoMobile label="Nombre" value={nombre} onChange={alCambiar('nombre', setNombre)} error={errors.nombre} placeholder="Juan" autoComplete="given-name" />
+                            <CampoTextoMobile label="Apellido" value={apellido} onChange={alCambiar('apellido', setApellido)} error={errors.apellido} placeholder="Pérez" autoComplete="family-name" />
+                            <CampoTextoMobile label="Correo electrónico" type="email" value={email} onChange={alCambiar('email', setEmail)} error={errors.email} placeholder="usuario@email.com" autoComplete="email" />
+                            <CampoTextoMobile label="Teléfono" type="tel" value={telefono} onChange={alCambiar('telefono', setTelefono)} error={errors.telefono} placeholder="Ej.: +54 9 221 1234567" autoComplete="tel" />
+                            <CampoTextoMobile label="Contraseña" type="password" value={password} onChange={alCambiar('password', setPassword)} error={errors.password} placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
+                            <CampoTextoMobile label="Confirmar contraseña" type="password" value={confirmPassword} onChange={alCambiar('confirmPassword', setConfirmPassword)} error={errors.confirmPassword} placeholder="Repetí tu contraseña" autoComplete="new-password" />
 
                             {serverError && (
                                 <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm p-3 rounded-lg text-center mt-1">
@@ -721,7 +794,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                             <CampoTexto
                                 label="Nombre"
                                 value={nombre}
-                                onChange={setNombre}
+                                onChange={alCambiar('nombre', setNombre)}
                                 error={errors.nombre}
                                 placeholder="Juan"
                                 autoComplete="given-name"
@@ -729,7 +802,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                             <CampoTexto
                                 label="Apellido"
                                 value={apellido}
-                                onChange={setApellido}
+                                onChange={alCambiar('apellido', setApellido)}
                                 error={errors.apellido}
                                 placeholder="Pérez"
                                 autoComplete="family-name"
@@ -738,7 +811,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                                 label="Correo electrónico"
                                 type="email"
                                 value={email}
-                                onChange={setEmail}
+                                onChange={alCambiar('email', setEmail)}
                                 error={errors.email}
                                 placeholder="usuario@email.com"
                                 autoComplete="email"
@@ -747,7 +820,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                                 label="Teléfono"
                                 type="tel"
                                 value={telefono}
-                                onChange={setTelefono}
+                                onChange={alCambiar('telefono', setTelefono)}
                                 error={errors.telefono}
                                 placeholder="Ej.: +54 9 221 1234567"
                                 autoComplete="tel"
@@ -756,7 +829,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                                 label="Contraseña"
                                 type="password"
                                 value={password}
-                                onChange={setPassword}
+                                onChange={alCambiar('password', setPassword)}
                                 error={errors.password}
                                 placeholder="Mínimo 8 caracteres"
                                 autoComplete="new-password"
@@ -765,7 +838,7 @@ function RegisterView({ onSwitchToLogin, navigate }) {
                                 label="Confirmar contraseña"
                                 type="password"
                                 value={confirmPassword}
-                                onChange={setConfirmPassword}
+                                onChange={alCambiar('confirmPassword', setConfirmPassword)}
                                 error={errors.confirmPassword}
                                 placeholder="Repetí tu contraseña"
                                 autoComplete="new-password"
